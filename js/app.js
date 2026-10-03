@@ -77,6 +77,13 @@ function getStudioUrl() {
   ).href;
 }
 
+function getBlankTemplateUrl() {
+  return new URL(
+    import.meta.env.BASE_URL + "blank2010.hwp",
+    window.location.origin
+  ).href;
+}
+
 async function retireLegacyStudioServiceWorkers() {
   if (!("serviceWorker" in navigator)) return;
   try {
@@ -316,47 +323,37 @@ async function createNewDocument() {
   if (state.loading) return;
 
   state.loading = true;
+  stopStateMonitor();
   els.newButton.disabled = true;
   els.emptyNewButton.disabled = true;
+  els.saveButton.disabled = true;
+  els.printButton.disabled = true;
 
   try {
     const editor = await ensureEditor();
-    const before = state.hasDocument
-      ? await editor.getDocumentState().catch(() => null)
-      : null;
+    setStatus("빈 HWP 문서 불러오는 중…");
+    els.documentName.textContent = "새 문서.hwp";
+    els.documentMeta.textContent = "검증된 빈 HWP 템플릿을 준비하는 중…";
 
-    setStatus("새 HWP 문서 만드는 중…");
-
-    const result = await editor.commands.execute(
-      "file:new-doc",
-      undefined,
-      { allowDialog: true }
-    );
-
-    if (result && result.ok === false) {
-      throw new Error(result.message || "새 문서를 만들 수 없습니다.");
+    const response = await fetch(getBlankTemplateUrl(), {
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      throw new Error("빈 HWP 템플릿을 불러오지 못했습니다. HTTP " + response.status);
     }
 
-    const created = await waitForDocumentEpochChange(
-      before ? before.documentEpoch : null,
-      6000
-    );
-
-    if (!created) {
-      if (state.hasDocument) {
-        setStatus("기존 문서 편집 중");
-        toast("새 문서 만들기가 취소되었거나 완료되지 않았습니다.");
-        return;
-      }
-      throw new Error("새 문서 생성 완료를 확인하지 못했습니다.");
-    }
+    const buffer = await response.arrayBuffer();
+    const result = await editor.loadFile(buffer, "새 문서.hwp", {
+      skipUnsavedGuard: false,
+      suppressDialogs: true,
+    });
 
     state.hasDocument = true;
     state.sourceFile = null;
     state.fileName = "새 문서.hwp";
-    state.currentFormat = created.format || "hwp";
+    state.currentFormat = "hwp";
     state.isNewDocument = true;
-    state.pageCount = Number(created.pageCount || 1);
+    state.pageCount = Number(result && result.pageCount ? result.pageCount : 1);
     state.currentPage = 1;
 
     setEditorSurfaceVisible(true);
@@ -364,31 +361,37 @@ async function createNewDocument() {
     els.studioLoading.hidden = true;
     els.studioHost.hidden = false;
     els.documentName.textContent = "새 문서.hwp";
-    els.documentMeta.textContent = "1페이지 · 새 문서 · 바로 입력 가능";
-    els.formatInfo.textContent = "HWP · New Document";
+    els.documentMeta.textContent =
+      state.pageCount + "페이지 · 새 문서 · 바로 입력 가능";
+    els.formatInfo.textContent = "HWP · Blank Template";
     els.saveButton.disabled = false;
     els.saveButton.textContent = "HWP 저장";
     els.printButton.disabled = false;
 
-    updateDirtyUi(created.dirty);
+    updateDirtyUi(true);
     updatePageUi(1, state.pageCount);
     setStatus("새 문서 편집 중");
     startStateMonitor();
-    toast("빈 HWP 문서를 만들었습니다. 바로 입력을 시작하세요.");
+    toast("빈 HWP 문서를 열었습니다. 바로 입력을 시작하세요.");
   } catch (error) {
-    console.error(error);
+    console.error("[new-document]", error);
     setStatus("새 문서 생성 실패");
     toast(error && error.message ? error.message : "새 문서를 만들 수 없습니다.");
 
     if (!state.hasDocument) {
       setEditorSurfaceVisible(false);
       els.documentName.textContent = "새 문서를 만들거나 파일을 열어주세요";
-      els.documentMeta.textContent = "HWP 파일 없이 빈 문서부터 바로 시작할 수 있습니다.";
+      els.documentMeta.textContent =
+        "HWP 파일 없이 빈 문서부터 바로 시작할 수 있습니다.";
     }
   } finally {
     state.loading = false;
     els.newButton.disabled = false;
     els.emptyNewButton.disabled = false;
+    if (state.hasDocument) {
+      els.saveButton.disabled = false;
+      els.printButton.disabled = false;
+    }
   }
 }
 
