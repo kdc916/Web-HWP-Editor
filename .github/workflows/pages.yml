@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: "pages"
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -24,13 +24,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Stage rHWP WASM
+        run: |
+          mkdir -p public
+          cp node_modules/@rhwp/core/rhwp_bg.wasm public/rhwp_bg.wasm
+
+      - name: Build
+        run: |
+          npm run build
+          touch dist/.nojekyll
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
       - name: Upload static site
         uses: actions/upload-pages-artifact@v4
         with:
-          path: "."
+          path: "./dist"
 
       - name: Deploy to GitHub Pages
         id: deployment

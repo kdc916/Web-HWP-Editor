@@ -200,3 +200,96 @@ Original Open
 - content.hpf/BinData 이미지
 - PDF/인쇄
 - GitHub Pages 자동 배포 구성
+
+
+---
+
+## v0.3.0 - General HWP Support
+기준일: 2026-10-03
+
+### 방향 변경
+기존 계획에서는 HWP Import를 v0.4 이후로 두었지만 실제 사용 목적상 일반 `.hwp` 지원이 핵심이므로 우선순위를 앞으로 이동했다.
+
+### 엔진
+- `@rhwp/core 0.8.6`
+- Rust + WASM
+- MIT License
+- HWP 5.0 OLE Compound parser
+- SVG renderer
+- HwpDocument edit / export API
+
+### 배포 구조 변경
+v0.2까지는 순수 정적 파일이었으나 v0.3부터 Vite 빌드를 사용한다.
+
+```text
+GitHub main
+  ↓
+npm install
+  ↓
+@rhwp/core/rhwp_bg.wasm → public/rhwp_bg.wasm
+  ↓
+Vite build
+  ↓
+dist/
+  ↓
+GitHub Pages
+```
+
+### HWP 열기
+`js/hwp.js`가 담당한다.
+
+- WASM 초기화
+- Canvas.measureText 기반 `measureTextWidth` bridge 등록
+- `new HwpDocument(Uint8Array)`
+- `pageCount()`
+- `renderPageSvg(page)`
+- `hitTest(page,x,y)`
+
+### HWP 텍스트 편집 v1
+현재는 완전한 캐럿 에디터 대신 안정적인 target-based editor를 사용한다.
+
+```text
+HWP 페이지 더블클릭
+  ↓
+hitTest()
+  ↓
+본문 문단 / 표 셀 context 확인
+  ↓
+getParagraphLength + getTextRange
+또는
+getCellParagraphLength + getTextInCell
+  ↓
+팝업 textarea 편집
+  ↓
+deleteText + insertText
+또는
+deleteTextInCell + insertTextInCell
+  ↓
+페이지 재렌더링
+  ↓
+exportHwp()
+```
+
+중첩 셀에서 `cellPath`가 제공되면 ByPath API를 우선 사용한다.
+
+### v0.3 한계
+- SVG 위에서 바로 커서를 놓고 타이핑하는 WYSIWYG 캐럿 입력은 아직 미구현.
+- HWP Undo/Redo는 아직 비활성. HWPX Undo/Redo는 기존 기능 유지.
+- 텍스트 팝업 편집은 한 문단 단위다.
+- 머리말/꼬리말/각주 직접 편집 UI는 아직 없음.
+- 일부 특수 HWP 컨트롤은 hit-test 편집 대상에서 제외될 수 있음.
+
+### 다음 우선순위: v0.3.1
+1. 실제 HWP 샘플 회귀 테스트
+2. HWP 표 셀 hitTest 보강
+3. HWP Undo/Redo snapshot
+4. 클릭 위치 캐럿 표시
+5. 본문 직접 타이핑 + 한글 IME
+6. 표 셀 직접 타이핑
+7. HWP/HWPX 공통 서식 툴바
+
+### 안정성 원칙
+- 사용자 HWP 파일을 공개 저장소 테스트 fixture로 업로드하지 않는다.
+- 외부 iframe 에디터에 문서 bytes를 넘기지 않는다.
+- HWP 엔진과 WASM은 앱 자체 배포 artifact에 포함한다.
+- 저장 전 원본 파일명과 편집 상태를 UI에 명시한다.

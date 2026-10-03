@@ -1,79 +1,68 @@
 # Web HWP Editor
 
-설치 없이 브라우저에서 HWPX 문서를 열고 수정하는 **Local-first 웹 편집기**입니다.
+설치 없이 브라우저에서 **HWP 5.0 / HWPX** 문서를 열고 수정하는 Local-first 웹 편집기입니다.
 
 > 문서 파일 자체는 서버로 업로드하지 않고 사용자의 브라우저 메모리에서 처리합니다.
 
 ## Live
 
-GitHub Pages 배포 주소:
-
 **https://kdc916.github.io/Web-HWP-Editor/**
 
 ## 현재 안정 기준
 
-**v0.2.0 – Rendering Fidelity**
+**v0.3.0 – General HWP Support**
 
-### v0.2.0 구현
-- HWPX 파일 선택 / Drag & Drop
-- `Contents/header.xml` 서식 테이블 파싱
-- `charPr` 기반 글자 크기 / 색상 / 굵게 / 기울임 / 밑줄 / 취소선 / 글꼴 / 자간 표시
-- `paraPr` 기반 문단 정렬 / 줄 간격 / 여백 / 들여쓰기 표시
-- `secPr/pagePr` 기반 실제 페이지 크기 및 여백 반영
-- `cellSpan` 기반 표 `rowspan` / `colspan` 표시
-- `content.hpf` manifest → `BinData` 이미지 연결 및 브라우저 렌더링
-- 텍스트 및 표 셀 수정
-- 원본 HWPX ZIP 패키지 기반 재저장
-- Undo / Redo
-- 확대 / 축소
-- Cmd/Ctrl + S 저장
+### 일반 .hwp
+- HWP 5.0 OLE Compound 문서 열기
+- Rust/WASM 기반 `@rhwp/core 0.8.6` 로컬 파싱
+- 페이지 SVG 렌더링
+- 표 / 이미지 / 도형 / 수식 등 엔진 렌더링 사용
+- 페이지 이동 및 확대/축소
+- 문단 또는 표 셀 더블클릭 → 텍스트 편집
+- 수정 문서를 다시 `.hwp`로 저장
 - 브라우저 PDF / 인쇄
-- GitHub Pages 자동 배포 워크플로
 
-### 이전 v0.1.0
-- HWPX ZIP 로드
-- `Contents/section*.xml` 탐색
-- 일반 문단 / 표 셀 텍스트 편집
-- 원본 리소스 보존형 저장 기반
+### .hwpx
+- 기존 v0.2 XML 편집 엔진 유지
+- 글자/문단 서식 렌더링
+- 표 병합 및 BinData 이미지
+- 텍스트 / 표 셀 직접 편집
+- HWPX 다시 저장
 
-## 현재 한계
-- `.hwp` 바이너리 파일은 아직 미지원
-- 여러 서식 Run이 섞인 문단은 Run 단위로 클릭해 편집하는 방식
-- Enter로 새 문단 생성은 아직 미지원
-- 표의 정확한 BorderFill, 셀 배경색 등은 후속 패치 대상
-- 그림 위치/텍스트 감싸기/도형/차트/수식은 원본 수준 렌더링 미지원
-- 페이지 자동 줄바꿈/페이지네이션은 아직 브라우저의 실제 레이아웃과 한컴 결과가 완전히 동일하지 않음
-- JSZip은 CDN에서 불러오므로 앱 최초 로드에는 인터넷 연결이 필요함
+## HWP 편집 방법
+
+1. `.hwp` 파일을 열거나 드래그합니다.
+2. 수정할 문단 또는 표 셀을 **더블클릭**합니다.
+3. 팝업에서 텍스트를 수정하고 **적용**합니다.
+4. 상단의 **HWP 저장**을 누릅니다.
+
+v0.3은 정확한 캐럿 기반 WYSIWYG 편집 전 단계입니다. 문단/표 셀의 텍스트를 한 단위로 수정하며 원래 서식과 표 구조는 엔진에서 유지합니다.
+
+## 기술 구조
+
+- Vite 8
+- `@rhwp/core 0.8.6` — HWP/HWPX Rust + WebAssembly parser/renderer
+- `jszip 3.10.1` — 기존 HWPX XML 편집 경로
+- GitHub Actions → GitHub Pages 자동 배포
 
 ## 로컬 실행
-별도 빌드가 필요 없는 정적 웹 앱입니다.
 
 ```bash
-python3 -m http.server 8080
+npm install
+mkdir -p public
+cp node_modules/@rhwp/core/rhwp_bg.wasm public/rhwp_bg.wasm
+npm run dev
 ```
 
-브라우저에서 `http://localhost:8080` 접속.
+## 개인정보 / 로컬 처리
 
-## 구조
+- HWP 엔진과 WASM 파일은 Web HWP Editor 사이트에서 직접 로드됩니다.
+- 사용자가 선택한 HWP/HWPX 파일은 앱 서버에 업로드하지 않습니다.
+- HWP 편집에 외부 iframe 서비스를 사용하지 않습니다.
 
-```text
-index.html
-styles.css
-js/
-  app.js
-  hwpx.js
-.github/
-  workflows/
-    pages.yml
-.nojekyll
-README.md
-DEVELOPMENT_HANDOFF.md
-```
+## 오픈소스 고지
 
-## 설계 원칙
-1. 문서 파일은 서버에 업로드하지 않는다.
-2. 지원하지 않는 HWPX 요소는 저장 시 가능한 한 원본 ZIP 내부에 그대로 보존한다.
-3. HWPX를 우선 편집 포맷으로 완성한 다음 `.hwp` Import를 확장한다.
-4. 브라우저 화면과 한컴 출력 차이는 실제 샘플 문서를 통한 회귀 테스트로 줄인다.
+HWP 5.0 지원에는 MIT 라이선스의 `@rhwp/core` 프로젝트를 사용합니다.
+관련 라이선스 및 제3자 라이선스는 해당 프로젝트의 고지를 따릅니다.
 
 자세한 개발 계획과 변경 이력은 [DEVELOPMENT_HANDOFF.md](./DEVELOPMENT_HANDOFF.md)를 참고하세요.

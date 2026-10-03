@@ -1,3 +1,5 @@
+import JSZip from "jszip";
+
 const NS = {
   para: ["p"],
   run: ["run"],
@@ -356,7 +358,6 @@ function parseTable(node, sectionIndex, hwpx){
 }
 
 export async function loadHwpx(file){
-  if(!window.JSZip) throw new Error("JSZip을 불러오지 못했습니다.");
   const zip=await JSZip.loadAsync(file);
   const sectionPaths=Object.keys(zip.files)
     .filter(p=>/^Contents\/section\d+\.xml$/i.test(p))
