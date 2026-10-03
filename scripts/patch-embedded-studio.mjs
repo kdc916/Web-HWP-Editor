@@ -18,15 +18,11 @@ function patchEmbeddedVite() {
   ].join('\n');
 
   const start = source.indexOf(startMarker);
-  if (start < 0) {
-    throw new Error('VitePWA start marker not found');
+  if (start >= 0) {
+    const endStart = source.indexOf(endMarker, start);
+    if (endStart < 0) throw new Error('VitePWA end marker not found');
+    source = source.slice(0, start) + source.slice(endStart + endMarker.length);
   }
-  const endStart = source.indexOf(endMarker, start);
-  if (endStart < 0) {
-    throw new Error('VitePWA end marker not found');
-  }
-  const end = endStart + endMarker.length;
-  source = source.slice(0, start) + source.slice(end);
 
   if (source.includes('VitePWA(') || source.includes("from 'vite-plugin-pwa'")) {
     throw new Error('embedded Studio PWA removal incomplete');
@@ -34,42 +30,28 @@ function patchEmbeddedVite() {
   writeFileSync(file, source);
 }
 
-function patchSafeEqualization() {
+function replaceCommandBlock(source, startId, endId, replacement) {
+  const start = source.indexOf(`  {\n    id: '${startId}'`);
+  const end = source.indexOf(`  {\n    id: '${endId}'`, start + 1);
+  if (start < 0 || end < 0) {
+    throw new Error(`command block not found: ${startId} -> ${endId}`);
+  }
+  return source.slice(0, start) + replacement + '\n' + source.slice(end);
+}
+
+function patchPersistentEqualization() {
   const file = join(root, 'rhwp-studio', 'src', 'command', 'commands', 'table.ts');
   let source = readFileSync(file, 'utf8');
 
-  const disabledBlocks = `  {
-    id: 'table:cell-height-equal',
-    label: t('command.table.cellHeightEqual.label'),
-    shortcutLabel: 'H',
-    canExecute: localTableGeometryCanPersist,
-    execute() {},
-  },
-  {
-    id: 'table:cell-width-equal',
-    label: t('command.table.cellWidthEqual.label'),
-    shortcutLabel: 'W',
-    canExecute: localTableGeometryCanPersist,
-    execute() {},
-  },`;
-
-  if (!source.includes(disabledBlocks)) {
-    throw new Error('disabled equalization command block not found');
-  }
-
-  const helper = `
+  const helper = String.raw`
 /**
- * Web HWP Editor safe equalization.
+ * Web HWP Editor v0.5.2 table integrity helpers.
  *
- * HWP/HWPX cannot persist arbitrary per-row/per-column local geometry.
- * We therefore only perform WHOLE-TABLE equalization and update every cell,
- * including merged cells, from one canonical row/column grid.
- *
- * The merged-cell dimension is always the sum of the rows/columns it spans.
- * This prevents the classic mismatch:
- *   equalize rows -> merge vertical cells -> merged cell bottom drifts.
+ * Equal-height/width must mutate persisted HWP cell geometry, not only renderer-local
+ * geometry. Rows/columns are canonical grid units. A merged cell is always resized to
+ * the sum of every unit it spans, so merge/split/save/reopen cannot drift apart.
  */
-function distributeWhole(total: number, count: number): number[] {
+function webHwpDistributeUnits(total: number, count: number): number[] {
   if (count <= 0) return [];
   const base = Math.floor(total / count);
   let remainder = total - base * count;
@@ -80,16 +62,48 @@ function distributeWhole(total: number, count: number): number[] {
   });
 }
 
-function equalizeWholeTableGeometry(
+function webHwpCanonicalUnits(
+  services: CommandServices,
+  sec: number,
+  ppi: number,
+  ci: number,
+  dims: TableDimensions,
+  axis: 'height' | 'width',
+): number[] | null {
+  const count = axis === 'height' ? dims.rowCount : dims.colCount;
+  const units = Array<number>(count).fill(0);
+
+  for (let cellIdx = 0; cellIdx < dims.cellCount; cellIdx += 1) {
+    const info = services.wasm.getCellInfo(sec, ppi, ci, cellIdx);
+    const props = services.wasm.getCellProperties(sec, ppi, ci, cellIdx);
+    const span = axis === 'height' ? info.rowSpan : info.colSpan;
+    if (span !== 1) continue;
+
+    const unit = axis === 'height' ? info.row : info.col;
+    const value = Number(axis === 'height' ? props.height : props.width);
+    if (unit >= 0 && unit < units.length && Number.isFinite(value) && value > units[unit]) {
+      units[unit] = value;
+    }
+  }
+
+  // If a unit has no independent persisted size, guessing would recreate the old drift bug.
+  return units.every((value) => value > 0) ? units : null;
+}
+
+function webHwpEqualizeSelectedGrid(
   services: CommandServices,
   axis: 'height' | 'width',
 ): void {
   const ctx = currentTableCellContext(services);
   if (!ctx) return;
-
   const { ih, pos } = ctx;
+
   if ((pos.cellPath?.length ?? 0) > 1) {
-    console.warn('[table equalize] nested tables are not modified by the safe whole-table path');
+    console.warn('[WebHWP table] nested-table equalization is fail-closed');
+    return;
+  }
+  if (hasNonRectangularCellSelection(ih)) {
+    console.warn('[WebHWP table] non-rectangular cell selection is not equalized');
     return;
   }
 
@@ -97,108 +111,123 @@ function equalizeWholeTableGeometry(
   const ppi = pos.parentParaIndex!;
   const ci = pos.controlIndex!;
   const dims = services.wasm.getTableDimensions(sec, ppi, ci);
-  if (dims.rowCount <= 0 || dims.colCount <= 0 || dims.cellCount <= 0) return;
+  const range = ih.isInCellSelectionMode?.() ? ih.getSelectedCellRange?.() : null;
+  if (!range) return;
 
-  const cells = Array.from({ length: dims.cellCount }, (_, cellIdx) => {
-    const info = services.wasm.getCellInfo(sec, ppi, ci, cellIdx);
-    const props = services.wasm.getCellProperties(sec, ppi, ci, cellIdx);
-    return {
-      cellIdx,
-      row: info.row,
-      col: info.col,
-      rowSpan: Math.max(1, info.rowSpan),
-      colSpan: Math.max(1, info.colSpan),
-      width: Number(props.width ?? 0),
-      height: Number(props.height ?? 0),
-    };
-  });
+  const startUnit = axis === 'height' ? range.startRow : range.startCol;
+  const endUnit = axis === 'height' ? range.endRow : range.endCol;
+  const selectedCount = endUnit - startUnit + 1;
+  if (selectedCount < 2) return;
 
-  const unitCount = axis === 'height' ? dims.rowCount : dims.colCount;
-  const baseUnits = Array<number>(unitCount).fill(0);
-
-  for (const cell of cells) {
-    const span = axis === 'height' ? cell.rowSpan : cell.colSpan;
-    if (span !== 1) continue;
-    const index = axis === 'height' ? cell.row : cell.col;
-    const value = axis === 'height' ? cell.height : cell.width;
-    if (index >= 0 && index < baseUnits.length && value > baseUnits[index]) {
-      baseUnits[index] = value;
-    }
-  }
-
-  // A row/column covered only by merged cells has no trustworthy independent
-  // persisted size. Fail closed instead of manufacturing geometry.
-  if (baseUnits.some((value) => value <= 0)) {
-    console.warn('[table equalize] skipped: a grid unit has no persisted single-span size', baseUnits);
+  const canonical = webHwpCanonicalUnits(services, sec, ppi, ci, dims, axis);
+  if (!canonical) {
+    console.warn('[WebHWP table] persisted grid could not be derived safely');
     return;
   }
 
-  const targetUnits = distributeWhole(
-    baseUnits.reduce((sum, value) => sum + value, 0),
-    unitCount,
-  );
+  const selectedTotal = canonical
+    .slice(startUnit, endUnit + 1)
+    .reduce((sum, value) => sum + value, 0);
+  const equal = webHwpDistributeUnits(selectedTotal, selectedCount);
+  const targetUnits = canonical.slice();
+  for (let i = 0; i < selectedCount; i += 1) {
+    targetUnits[startUnit + i] = equal[i];
+  }
 
-  const updates = cells.flatMap((cell) => {
+  const updates: Parameters<CommandServices['wasm']['resizeTableCells']>[3] = [];
+  for (let cellIdx = 0; cellIdx < dims.cellCount; cellIdx += 1) {
+    const info = services.wasm.getCellInfo(sec, ppi, ci, cellIdx);
+    const props = services.wasm.getCellProperties(sec, ppi, ci, cellIdx);
+
     if (axis === 'height') {
-      const end = Math.min(targetUnits.length, cell.row + cell.rowSpan);
-      const desired = targetUnits.slice(cell.row, end).reduce((sum, value) => sum + value, 0);
-      const delta = desired - cell.height;
-      return delta === 0 ? [] : [{ cellIdx: cell.cellIdx, heightDelta: delta }];
+      const end = Math.min(targetUnits.length, info.row + Math.max(1, info.rowSpan));
+      const desired = targetUnits.slice(info.row, end).reduce((sum, value) => sum + value, 0);
+      const current = Number(props.height);
+      const delta = desired - current;
+      if (delta !== 0) updates.push({ cellIdx, heightDelta: delta });
+    } else {
+      const end = Math.min(targetUnits.length, info.col + Math.max(1, info.colSpan));
+      const desired = targetUnits.slice(info.col, end).reduce((sum, value) => sum + value, 0);
+      const current = Number(props.width);
+      const delta = desired - current;
+      if (delta !== 0) updates.push({ cellIdx, widthDelta: delta });
     }
-
-    const end = Math.min(targetUnits.length, cell.col + cell.colSpan);
-    const desired = targetUnits.slice(cell.col, end).reduce((sum, value) => sum + value, 0);
-    const delta = desired - cell.width;
-    return delta === 0 ? [] : [{ cellIdx: cell.cellIdx, widthDelta: delta }];
-  });
+  }
 
   if (updates.length === 0) return;
 
   safeTableOp(() => ih.executeOperation({
     kind: 'snapshot',
-    operationType: axis === 'height' ? 'equalizeWholeTableHeight' : 'equalizeWholeTableWidth',
+    operationType: axis === 'height'
+      ? 'equalizeSelectedTableRowsPersisted'
+      : 'equalizeSelectedTableColumnsPersisted',
     operation: (wasm) => {
       const result = wasm.resizeTableCells(sec, ppi, ci, updates);
-      if (!result.ok) throw new Error('표 전체 균등화 저장에 실패했습니다.');
+      if (result && result.ok === false) {
+        throw new Error(axis === 'height'
+          ? '셀 높이 균등화 저장에 실패했습니다.'
+          : '셀 너비 균등화 저장에 실패했습니다.');
+      }
       return pos;
     },
-  }), axis === 'height' ? '표 전체 높이 같게' : '표 전체 너비 같게');
+  }), axis === 'height' ? '셀 높이를 같게' : '셀 너비를 같게');
 
   restoreEditorFocus(ih);
 }
-
 `;
 
   const exportMarker = 'export const tableCommands: CommandDef[] = [';
-  const exportIndex = source.indexOf(exportMarker);
-  if (exportIndex < 0) throw new Error('tableCommands export marker not found');
+  const exportAt = source.indexOf(exportMarker);
+  if (exportAt < 0) throw new Error('tableCommands marker not found');
+  if (!source.includes('function webHwpEqualizeSelectedGrid(')) {
+    source = source.slice(0, exportAt) + helper + '\n' + source.slice(exportAt);
+  }
 
-  source = source.slice(0, exportIndex) + helper + source.slice(exportIndex);
-
-  const safeBlocks = `  {
+  const equalCommands = String.raw`  {
     id: 'table:cell-height-equal',
-    label: t('command.table.cellHeightEqual.label'),
+    label: '셀 높이를 같게',
     shortcutLabel: 'H',
-    canExecute: inTableOrCellSelection,
-    execute(services) { equalizeWholeTableGeometry(services, 'height'); },
+    canExecute: hasMultiCellSelection,
+    execute(services) { webHwpEqualizeSelectedGrid(services, 'height'); },
   },
   {
     id: 'table:cell-width-equal',
-    label: t('command.table.cellWidthEqual.label'),
+    label: '셀 너비를 같게',
     shortcutLabel: 'W',
-    canExecute: inTableOrCellSelection,
-    execute(services) { equalizeWholeTableGeometry(services, 'width'); },
+    canExecute: hasMultiCellSelection,
+    execute(services) { webHwpEqualizeSelectedGrid(services, 'width'); },
   },`;
 
-  source = source.replace(disabledBlocks, safeBlocks);
+  source = replaceCommandBlock(source, 'table:cell-height-equal', 'table:formula', equalCommands);
 
-  if (!source.includes('equalizeWholeTableGeometry') || source.includes('canExecute: localTableGeometryCanPersist')) {
-    throw new Error('safe equalization patch incomplete');
+  // Merge must never silently include Ctrl-excluded cells or nested-table ranges.
+  source = source.replace(
+    "    canExecute: (ctx) => ctx.inCellSelectionMode,\n    execute(services) {\n      const ih = services.getInputHandler();\n      if (!ih) return;\n      const range = ih.getSelectedCellRange();\n      const tableCtx = ih.getCellTableContext();",
+    "    canExecute: hasMultiCellSelection,\n    execute(services) {\n      const ih = services.getInputHandler();\n      if (!ih) return;\n      if (hasNonRectangularCellSelection(ih)) return;\n      const range = ih.getSelectedCellRange();\n      const tableCtx = ih.getCellTableContext();\n      if ((tableCtx?.cellPath?.length ?? 0) > 1) return;"
+  );
+
+  // Split supports a rectangular cell block, but excluded/non-rectangular blocks are unsafe.
+  source = source.replace(
+    "      const range = ih.getSelectedCellRange?.();\n      const tableCtx = ih.getCellTableContext?.();\n      const isMultiCell = range && tableCtx &&",
+    "      const range = ih.getSelectedCellRange?.();\n      const tableCtx = ih.getCellTableContext?.();\n      if (hasNonRectangularCellSelection(ih)) return;\n      if ((tableCtx?.cellPath?.length ?? 0) > 1) return;\n      const isMultiCell = range && tableCtx &&"
+  );
+
+  if (source.includes('localResize: true')) {
+    const heightAt = source.indexOf("id: 'table:cell-height-equal'");
+    const formulaAt = source.indexOf("id: 'table:formula'", heightAt);
+    if (source.slice(heightAt, formulaAt).includes('localResize: true')) {
+      throw new Error('legacy local-only equalization remains');
+    }
+  }
+  if (!source.includes("canExecute: hasMultiCellSelection") ||
+      !source.includes("webHwpEqualizeSelectedGrid(services, 'height')") ||
+      !source.includes("webHwpEqualizeSelectedGrid(services, 'width')")) {
+    throw new Error('persistent equalization patch incomplete');
   }
 
   writeFileSync(file, source);
 }
 
 patchEmbeddedVite();
-patchSafeEqualization();
-console.log('Embedded rhwp Studio patched: no PWA + safe whole-table equalization.');
+patchPersistentEqualization();
+console.log('Web HWP Editor v0.5.2 Studio patch applied.');
