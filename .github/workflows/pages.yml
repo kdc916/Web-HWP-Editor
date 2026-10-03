@@ -42,11 +42,37 @@ jobs:
       - name: Fetch pinned rhwp reliability core
         run: |
           set -euo pipefail
-          mkdir -p .rhwp
-          curl -sSfL --retry 5 --retry-delay 2 --retry-all-errors \
-            -o /tmp/rhwp-pinned.tar.gz \
-            "https://github.com/edwardkim/rhwp/archive/${RHWP_PINNED_COMMIT}.tar.gz"
-          tar -xzf /tmp/rhwp-pinned.tar.gz --strip-components=1 -C .rhwp
+          rm -rf .rhwp
+          git init .rhwp
+          git -C .rhwp remote add origin https://github.com/edwardkim/rhwp.git
+          git -C .rhwp config core.sparseCheckout true
+          mkdir -p .rhwp/.git/info
+          cat > .rhwp/.git/info/sparse-checkout <<'SPARSE'
+          /*
+          !/*/
+          /src/
+          /crates/
+          /vendor/
+          /rhwp-studio/
+          !/rhwp-studio/public/samples/
+          /rhwp-shared/
+          /assets/
+          /saved/
+          /ttfs/opensource/
+          /scripts/
+          /npm/editor/
+          /bindings/Native/
+          /tools/rhwp-subsecond/
+          /tools/batch-convert/
+          /tools/llm_verifier/verdict_protocol/
+          /tools/llm_verifier/claim_bind/
+          /tools/llm_verifier/criteria_decomp/
+          /web/
+          /tests/
+          SPARSE
+          git -C .rhwp fetch --depth=1 --filter=blob:none origin "${RHWP_PINNED_COMMIT}"
+          git -C .rhwp checkout --detach FETCH_HEAD
+          test "$(git -C .rhwp rev-parse HEAD)" = "${RHWP_PINNED_COMMIT}"
 
       - name: Verify pinned document and table fixes
         run: |
