@@ -657,3 +657,38 @@ merge는 저장된 row height 합으로 merged height를 만들기 때문에 화
 
 ### 안정 기준
 v0.5.1부터 표 구조 변경 기능은 위 테스트가 하나라도 실패하면 배포하지 않는다.
+
+
+---
+
+## v0.5.3 - Reliable New Document Hotfix
+기준일: 2026-10-03
+
+### 증상
+- 첫 화면에서 `새 문서 시작` 클릭
+- 편집 화면이나 빈 페이지가 나타나지 않음
+- 사용자 입장에서는 아무 반응이 없는 것처럼 보임
+
+### 원인
+v0.5.2 새 문서는 외부 shell에서 `file:new-doc` automation command를 호출했다.
+이 command는 Studio 내부 eventBus에 `create-new-document` 이벤트를 발행하고 즉시 반환한다.
+실제 문서 생성은 Studio 내부에서 비동기로 진행되며 실패도 내부에서 catch 처리된다.
+따라서 외부 shell은 성공/실패를 직접 받을 수 없고, 문서 epoch polling이 만료되면 초기 화면으로 돌아갈 수 있었다.
+
+### 수정
+- rhwp 공식 `saved/blank2010.hwp`를 `public/blank2010.hwp` 및 배포 `docs/blank2010.hwp`에 포함
+- 새 문서 생성 시 템플릿을 `fetch(cache: no-store)`
+- `editor.loadFile(buffer, '새 문서.hwp', ...)` 사용
+- 일반 HWP 열기와 동일한 검증된 경로로 통일
+- 새 문서 상태는 `state.isNewDocument=true`로 관리
+- 저장 시 `새 문서.hwp` 다운로드
+- 배포 JS asset을 `index-v053-newdoc.js`로 분리해 브라우저 캐시 영향 차단
+
+### 기대 동작
+1. 새 문서 시작 클릭
+2. 편집기 초기화
+3. blank2010.hwp 로드
+4. 1페이지 빈 HWP 표시
+5. 즉시 입력 가능
+6. 표/쪽/서식 기능 사용 가능
+7. HWP 저장 가능
