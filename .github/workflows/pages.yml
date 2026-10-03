@@ -128,6 +128,7 @@ jobs:
         working-directory: .rhwp/rhwp-studio
         env:
           RHWP_DISABLE_EXTERNAL_WEBFONTS: "1"
+          RHWP_WITHOUT_HWPCTRL: "1"
         run: |
           npm install --no-audit --no-fund
           npx tsc
