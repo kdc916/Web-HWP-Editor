@@ -14,6 +14,10 @@ concurrency:
   group: "pages"
   cancel-in-progress: true
 
+env:
+  RHWP_PINNED_COMMIT: "6b3faf77d8085441f9f26d88d65a49791e910352"
+  WASM_PACK_VERSION: "0.15.0"
+
 jobs:
   deploy:
     environment:
@@ -35,23 +39,66 @@ jobs:
       - name: Build Web HWP Editor shell
         run: npm run build
 
-      - name: Fetch pinned rhwp Studio v0.8.6
+      - name: Fetch pinned rhwp reliability core
         run: |
           set -euo pipefail
           mkdir -p .rhwp
-          curl -sSfL --retry 5 --retry-delay 2 \
-            -o /tmp/rhwp-v0.8.6.tar.gz \
-            https://github.com/edwardkim/rhwp/archive/refs/tags/v0.8.6.tar.gz
-          tar -xzf /tmp/rhwp-v0.8.6.tar.gz --strip-components=1 -C .rhwp
+          curl -sSfL --retry 5 --retry-delay 2 --retry-all-errors \
+            -o /tmp/rhwp-pinned.tar.gz \
+            "https://github.com/edwardkim/rhwp/archive/${RHWP_PINNED_COMMIT}.tar.gz"
+          tar -xzf /tmp/rhwp-pinned.tar.gz --strip-components=1 -C .rhwp
 
-      - name: Stage pinned rhwp WASM package
+      - name: Verify pinned document and table fixes
         run: |
           set -euo pipefail
-          mkdir -p .rhwp-core .rhwp/pkg
-          npm install --prefix .rhwp-core --no-audit --no-fund @rhwp/core@0.8.6
-          cp -R .rhwp-core/node_modules/@rhwp/core/. .rhwp/pkg/
+          test -f .rhwp/tests/issue_4138_split_cell_stale_linesegs.rs
+          grep -q "split_cell_into_reflows_stale_segs_and_rebuilds_ladder" .rhwp/tests/issue_4138_split_cell_stale_linesegs.rs
+          grep -q "reflow_stale_cells_after_split" .rhwp/tests/issue_4138_split_cell_stale_linesegs.rs
+          grep -q "id: 'file:new-doc'" .rhwp/rhwp-studio/src/command/commands/file.ts
+          grep -q "id: 'page:break'" .rhwp/rhwp-studio/src/command/commands/page.ts
+          grep -q "id: 'table:create'" .rhwp/rhwp-studio/src/command/commands/table.ts
+          grep -q "id: 'table:cell-split'" .rhwp/rhwp-studio/src/command/commands/table.ts
 
-      - name: Build self-hosted rhwp Studio
+      - name: Install Rust WASM target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install pinned wasm-pack
+        run: |
+          set -euo pipefail
+          TARBALL="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl"
+          URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${TARBALL}.tar.gz"
+          TMPDIR="$(mktemp -d)"
+          curl -sSfL --retry 5 --retry-delay 2 --retry-all-errors \
+            -o "${TMPDIR}/wasm-pack.tar.gz" "${URL}"
+          tar -xzf "${TMPDIR}/wasm-pack.tar.gz" -C "${TMPDIR}"
+          mkdir -p "${HOME}/.cargo/bin"
+          cp "${TMPDIR}/${TARBALL}/wasm-pack" "${HOME}/.cargo/bin/wasm-pack"
+          echo "${HOME}/.cargo/bin" >> "$GITHUB_PATH"
+          "${HOME}/.cargo/bin/wasm-pack" --version
+
+      - name: Cache rhwp Cargo build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            .rhwp/target
+          key: ${{ runner.os }}-rhwp-${{ env.RHWP_PINNED_COMMIT }}-${{ hashFiles('.rhwp/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-rhwp-${{ env.RHWP_PINNED_COMMIT }}-
+            ${{ runner.os }}-rhwp-
+
+      - name: Build pinned rhwp WASM
+        working-directory: .rhwp
+        run: wasm-pack build --target web --release
+
+      - name: Stage fresh WASM into Studio
+        run: |
+          cp .rhwp/pkg/rhwp_bg.wasm .rhwp/rhwp-studio/public/rhwp_bg.wasm
+          cp .rhwp/pkg/rhwp.js .rhwp/rhwp-studio/public/rhwp.js
+          cp .rhwp/pkg/rhwp.d.ts .rhwp/rhwp-studio/public/rhwp.d.ts
+
+      - name: Build self-hosted pinned rhwp Studio
         working-directory: .rhwp/rhwp-studio
         env:
           RHWP_DISABLE_EXTERNAL_WEBFONTS: "1"
@@ -64,18 +111,19 @@ jobs:
         run: |
           mkdir -p dist/studio
           cp -R .rhwp/rhwp-studio/dist/. dist/studio/
+          printf "%s\n" "${RHWP_PINNED_COMMIT}" > dist/RHWP_CORE_COMMIT.txt
           touch dist/.nojekyll
 
       - name: Package source
         run: |
-          zip -r Web-HWP-Editor_v0.4.2_Source.zip . \
-            -x ".git/*" ".rhwp/*" ".rhwp-core/*" "node_modules/*" "dist/*" "Web-HWP-Editor_v0.4.2_Source.zip"
+          zip -r Web-HWP-Editor_v0.5.0_Source.zip . \
+            -x ".git/*" ".rhwp/*" "node_modules/*" "dist/*" "Web-HWP-Editor_v0.5.0_Source.zip"
 
       - name: Upload source package
         uses: actions/upload-artifact@v4
         with:
-          name: Web-HWP-Editor-v0.4.2-Source
-          path: Web-HWP-Editor_v0.4.2_Source.zip
+          name: Web-HWP-Editor-v0.5.0-Source
+          path: Web-HWP-Editor_v0.5.0_Source.zip
           if-no-files-found: error
 
       - name: Setup Pages

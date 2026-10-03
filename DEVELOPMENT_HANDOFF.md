@@ -482,3 +482,108 @@ Quick Ribbon은 유지되므로 집중 모드처럼 사용할 수 있다.
 9. dirty badge 변화
 10. 저장 후 saved badge 복귀
 11. 기본 도구 숨기기/보이기
+
+
+---
+
+## v0.5.0 - New Document & Table Reliability
+기준일: 2026-10-03
+
+### 사용자 요청
+- 페이지 추가 기능
+- 표 기능 보강
+- 셀 나누기가 제대로 나뉘지 않는 버그 수정
+- 기존 HWP 파일 없이 빈 문서로 시작
+
+### 엔진 변경
+v0.4.x의 rhwp v0.8.6 tag 기반 prebuilt WASM 대신 최신 수정이 포함된 upstream commit을 정확한 SHA로 고정하고 Studio와 WASM을 같은 소스에서 fresh build한다.
+
+Pinned upstream:
+6b3faf77d8085441f9f26d88d65a49791e910352
+
+### 셀 나누기 버그 근거
+upstream에는 tests/issue_4138_split_cell_stale_linesegs.rs 회귀 테스트가 존재한다.
+
+문제 요약:
+1. 셀 분할 후 셀 폭은 좁아졌지만 기존 폭 기준 line_segs가 남는다.
+2. glyph가 새 셀 clip 경계에서 잘릴 수 있다.
+3. 단순 reflow만으로는 문단 vpos 사다리가 역행할 수 있다.
+4. 페이지네이션이 달라질 수 있다.
+
+수정 경로:
+- reflow_stale_cells_after_split
+- rebuild_table_cell_vpos_ladder_native
+- 단일 셀 분할과 범위 셀 분할 모두 회귀 가드
+
+Web HWP Editor CI는 pinned source 안에 #4138 회귀 가드가 실제로 있는지 확인한 뒤 빌드한다.
+
+### WASM / Studio 정합
+v0.5부터 same pinned commit에서 wasm-pack 0.15.0으로 fresh WASM을 만들고 동일 commit의 rhwp-studio를 빌드한다.
+이 방식으로 Studio source와 WASM runtime의 버전 mismatch를 제거한다.
+
+### 새 문서
+- 헤더: 새 문서
+- 초기 화면: 새 문서 시작
+- Quick Ribbon: 새 문서
+- file:new-doc command 사용
+- 기존 문서가 dirty면 Studio unsaved guard 사용
+- documentEpoch 변화로 실제 새 문서 생성 완료 확인
+- 빈 문서도 HWP export 가능
+
+### 새 쪽
+- Quick Ribbon에 + 새 쪽 추가
+- page:break command 사용
+- Ctrl+Enter과 같은 동작
+- 현재 커서 위치에서 새 페이지 시작
+- 상태 모니터가 pageCount 갱신
+
+### 표
+- table:create
+- table:insert-row-col
+- table:delete-row-col
+- table:cell-merge
+- table:cell-split
+- table:cell-width-equal
+- table:cell-height-equal
+- table:cell-props
+
+### 새 문서 상태 관리
+기존 state.currentFile 중심 구조를 분리했다.
+- state.hasDocument
+- state.sourceFile
+- state.fileName
+- state.isNewDocument
+
+파일 없이 만든 문서도 편집, 저장, 인쇄, Quick Ribbon 사용이 가능하다.
+
+### 저장
+- 기존 파일: 원본명_edited.hwp 또는 hwpx
+- 새 문서: 새 문서.hwp
+- 저장 후 notifySaved()
+- 저장 완료 후 isNewDocument=false
+
+### CI
+1. Web HWP Editor shell build
+2. pinned rhwp source archive fetch
+3. #4138 regression source gate
+4. wasm32 target 설치
+5. wasm-pack 0.15.0 설치
+6. Cargo cache
+7. fresh rhwp WASM release build
+8. fresh WASM을 Studio public에 staging
+9. same pinned commit Studio build
+10. source ZIP 생성
+11. GitHub Pages deploy
+
+### 회귀 테스트
+1. 첫 화면에서 새 문서 생성
+2. 한글 IME 입력
+3. 새 쪽 추가
+4. 2x2 표 만들기
+5. 행/열 추가 및 삭제
+6. 단일 셀 1x2, 2x1, 2x2 분할
+7. 병합 셀 다시 나누기
+8. 여러 셀 범위 분할
+9. 분할 후 텍스트 줄바꿈과 클립 확인
+10. HWP 저장 후 재오픈
+11. 한컴 한/글에서 저장본 재오픈

@@ -1,55 +1,62 @@
 # Web HWP Editor
 
-브라우저에서 **HWP / HWPX를 문서 화면 그대로 직접 편집**하는 웹 에디터입니다.
+브라우저에서 HWP / HWPX를 직접 작성·열기·편집·저장하는 Local-first 웹 에디터입니다.
 
 ## Live
 
-**https://kdc916.github.io/Web-HWP-Editor/**
+https://kdc916.github.io/Web-HWP-Editor/
 
 ## 현재 안정 기준
 
-**v0.4.2 – Quick Ribbon & Editor State**
+v0.5.0 – New Document & Table Reliability
 
-self-hosted `rhwp-studio 0.8.6`의 편집 코어는 유지하면서, Web HWP Editor 바깥 UI에 자주 쓰는 기능을 바로 실행할 수 있는 Quick Ribbon을 추가했습니다.
+### 새 문서
+- HWP 파일을 먼저 열 필요 없이 새 문서 버튼으로 빈 HWP 문서 생성
+- 첫 화면에서 새 문서 시작
+- 상단 헤더와 Quick Ribbon에서도 새 문서 생성
+- 새 문서를 HWP로 바로 저장
 
-### Quick Ribbon
-- Undo / Redo
-- 굵게 / 기울임 / 밑줄
-- 글자 크기 증가 / 감소
-- 글자 모양
-- 왼쪽 / 가운데 / 오른쪽 / 양쪽 정렬
-- 줄간격 100~200%
-- 문단 모양
-- 줄/칸 추가 / 삭제
-- 셀 합치기 / 나누기
-- 셀 너비 / 높이 같게
+### 쪽
+- Quick Ribbon에 새 쪽 추가
+- 현재 커서 위치에서 page:break 실행
+- Ctrl+Enter과 동일한 HWP 쪽 나누기
+
+### 표
+- Quick Ribbon에 표 만들기 추가
+- 줄/칸 추가·삭제
+- 셀 합치기
+- 셀 나누기
+- 셀 너비/높이 같게
 - 표/셀 속성
-- 폭 맞춤 / 쪽 맞춤
-- Studio 기본 메뉴/도구 표시 토글
 
-### 상태 표시
-- 현재 페이지 / 전체 페이지
-- 저장됨 / 저장 안 됨
-- 문서 변경 상태 실시간 반영
-- 저장하지 않은 상태에서 브라우저 종료 시 경고
-- 표 선택 상태에 따라 표 버튼 자동 활성/비활성화
+### 표/셀 나누기 신뢰성 수정
+기존 v0.4.x는 공개 태그 v0.8.6의 사전 빌드 WASM을 사용했습니다.
 
-### 직접 편집
-- 문서 화면 직접 클릭 / 캐럿 이동
-- 한글 IME 직접 입력
-- 텍스트 선택 / 삭제 / 복사 / 붙여넣기
-- HWP / HWPX 저장
+v0.5.0부터는 rhwp의 수정 커밋을 정확한 SHA로 고정하고 WASM과 Studio를 GitHub Actions에서 같은 소스로 직접 빌드합니다.
 
-## 구조
+Pinned core:
+6b3faf77d8085441f9f26d88d65a49791e910352
 
-```text
-Web HWP Editor shell
-  ├─ Quick Ribbon
-  └─ @rhwp/editor MessageChannel
-       └─ same-origin /studio/
-            └─ rhwp-studio 0.8.6 + @rhwp/core 0.8.6 WASM
-```
+이 커밋에는 upstream #4138 셀 분할 회귀 가드가 포함되어 있습니다.
 
-외부 편집 사이트를 호출하지 않으며 사용자 문서는 서버 업로드 API로 전송하지 않습니다.
+분할 뒤 셀 폭이 줄었는데도 예전 폭 기준 line segment가 남아 발생하던 다음 문제를 보정하는 경로가 포함됩니다.
+- 글자가 셀 경계에서 잘리는 문제
+- 셀 내부 줄 배치가 틀어지는 문제
+- vpos 흐름이 무너지는 문제
+- 분할 후 페이지네이션이 달라지는 문제
 
-자세한 개발 계획과 누적 변경 이력은 [DEVELOPMENT_HANDOFF.md](./DEVELOPMENT_HANDOFF.md)를 참고하세요.
+### 로컬 처리
+- 외부 편집 사이트 iframe을 사용하지 않음
+- Studio와 WASM을 동일 GitHub Pages origin에 self-host
+- 사용자가 연 문서 파일은 서버 업로드 API로 전송하지 않음
+
+## 기술 구조
+- Web HWP Editor v0.5 shell
+- Quick Ribbon
+- @rhwp/editor 0.8.6 bridge
+- self-hosted rhwp Studio from pinned commit
+- fresh rhwp WASM from the same pinned commit
+
+브리지 파일은 v0.8.6 tag와 pinned commit에서 동일한 SHA임을 확인한 뒤 유지했습니다.
+
+자세한 개발 이력은 DEVELOPMENT_HANDOFF.md를 참고하세요.
