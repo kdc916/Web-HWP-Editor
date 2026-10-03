@@ -231,58 +231,60 @@ function webHwpEqualizeSelectedGrid(
 
 function patchStudioEqualizationRegressionTest() {
   const file = join(root, 'rhwp-studio', 'tests', 'table-cell-width-equal-1491.test.ts');
-  const testSource = \`import test from 'node:test';
-import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
-const table = readFileSync(join(rootDir, 'src/command/commands/table.ts'), 'utf8');
-
-function commandBlock(commandId: string): string {
-  const start = table.indexOf(\\\`id: '\\\${commandId}'\\\`);
-  assert.notEqual(start, -1, \\\`\\\${commandId} command not found\\\`);
-  const end = table.indexOf('\\\\n  {', start + 1);
-  assert.notEqual(end, -1, \\\`\\\${commandId} command end not found\\\`);
-  return table.slice(start, end);
-}
-
-test('셀 높이 같게는 renderer-local hint가 아니라 persisted grid를 수정한다', () => {
-  const block = commandBlock('table:cell-height-equal');
-  assert.match(block, /canExecute:\\s*hasMultiCellSelection/);
-  assert.match(block, /webHwpEqualizeSelectedGrid\\(services, 'height'\\)/);
-  assert.doesNotMatch(block, /localResize:\\s*true/);
-  assert.doesNotMatch(block, /renderHeight/);
-});
-
-test('셀 너비 같게는 renderer-local hint가 아니라 persisted grid를 수정한다', () => {
-  const block = commandBlock('table:cell-width-equal');
-  assert.match(block, /canExecute:\\s*hasMultiCellSelection/);
-  assert.match(block, /webHwpEqualizeSelectedGrid\\(services, 'width'\\)/);
-  assert.doesNotMatch(block, /localResize:\\s*true/);
-  assert.doesNotMatch(block, /renderWidth/);
-});
-
-test('persisted equalization helper는 병합 셀 크기를 span 단위 합으로 계산한다', () => {
-  assert.match(table, /targetUnits\\.slice\\(info\\.row, end\\)\\.reduce/);
-  assert.match(table, /targetUnits\\.slice\\(info\\.col, end\\)\\.reduce/);
-  assert.match(table, /wasm\\.resizeTableCells\\(sec, ppi, ci, updates\\)/);
-  assert.match(table, /operationType:\\s*axis === 'height'/);
-});
-
-test('셀 합치기는 다중 직사각형 선택에서만 활성화된다', () => {
-  const block = commandBlock('table:cell-merge');
-  assert.match(block, /canExecute:\\s*hasMultiCellSelection/);
-  assert.match(block, /hasNonRectangularCellSelection\\(ih\\)/);
-});
-
-test('셀 나누기는 비직사각형 블록을 거부한다', () => {
-  const block = commandBlock('table:cell-split');
-  assert.match(block, /hasNonRectangularCellSelection\\(ih\\)/);
-});
-\`;
-  writeFileSync(file, testSource);
+  const lines = [
+    "import test from 'node:test';",
+    "import assert from 'node:assert/strict';",
+    "import { readFileSync } from 'node:fs';",
+    "import { dirname, join } from 'node:path';",
+    "import { fileURLToPath } from 'node:url';",
+    "",
+    "const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));",
+    "const table = readFileSync(join(rootDir, 'src/command/commands/table.ts'), 'utf8');",
+    "",
+    "function commandBlock(commandId: string): string {",
+    "  const start = table.indexOf(\"id: '\" + commandId + \"'\");",
+    "  assert.notEqual(start, -1, commandId + ' command not found');",
+    "  const end = table.indexOf('\\n  {', start + 1);",
+    "  assert.notEqual(end, -1, commandId + ' command end not found');",
+    "  return table.slice(start, end);",
+    "}",
+    "",
+    "test('셀 높이 같게는 renderer-local hint가 아니라 persisted grid를 수정한다', () => {",
+    "  const block = commandBlock('table:cell-height-equal');",
+    "  assert.match(block, /canExecute:\\s*hasMultiCellSelection/);",
+    "  assert.match(block, /webHwpEqualizeSelectedGrid\\(services, 'height'\\)/);",
+    "  assert.doesNotMatch(block, /localResize:\\s*true/);",
+    "  assert.doesNotMatch(block, /renderHeight/);",
+    "});",
+    "",
+    "test('셀 너비 같게는 renderer-local hint가 아니라 persisted grid를 수정한다', () => {",
+    "  const block = commandBlock('table:cell-width-equal');",
+    "  assert.match(block, /canExecute:\\s*hasMultiCellSelection/);",
+    "  assert.match(block, /webHwpEqualizeSelectedGrid\\(services, 'width'\\)/);",
+    "  assert.doesNotMatch(block, /localResize:\\s*true/);",
+    "  assert.doesNotMatch(block, /renderWidth/);",
+    "});",
+    "",
+    "test('persisted equalization helper는 병합 셀 크기를 span 단위 합으로 계산한다', () => {",
+    "  assert.match(table, /targetUnits\\.slice\\(info\\.row, end\\)\\.reduce/);",
+    "  assert.match(table, /targetUnits\\.slice\\(info\\.col, end\\)\\.reduce/);",
+    "  assert.match(table, /wasm\\.resizeTableCells\\(sec, ppi, ci, updates\\)/);",
+    "  assert.match(table, /operationType:\\s*axis === 'height'/);",
+    "});",
+    "",
+    "test('셀 합치기는 다중 직사각형 선택에서만 활성화된다', () => {",
+    "  const block = commandBlock('table:cell-merge');",
+    "  assert.match(block, /canExecute:\\s*hasMultiCellSelection/);",
+    "  assert.match(block, /hasNonRectangularCellSelection\\(ih\\)/);",
+    "});",
+    "",
+    "test('셀 나누기는 비직사각형 블록을 거부한다', () => {",
+    "  const block = commandBlock('table:cell-split');",
+    "  assert.match(block, /hasNonRectangularCellSelection\\(ih\\)/);",
+    "});",
+    "",
+  ];
+  writeFileSync(file, lines.join('\\n'));
 }
 
 patchEmbeddedVite();
