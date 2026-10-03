@@ -59,6 +59,9 @@ jobs:
           /assets/
           /saved/
           /ttfs/opensource/
+          /mydocs/manual/
+          /mydocs/tech/agent_roadmap/
+          /samples/issue1949_giant_cell_nested_tables_perf.hwp
           /scripts/
           /npm/editor/
           /bindings/Native/
