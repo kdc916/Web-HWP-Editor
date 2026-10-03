@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: web-hwp-v052-once
+  cancel-in-progress: true
+
 env:
   RHWP_PIN: "680111ec7bea2fe11110de18c3676ba5a1cf7847"
   WASM_PACK_VERSION: "0.15.0"
