@@ -58,7 +58,9 @@ async function ensureEditor() {
   if (state.editor) return state.editor;
 
   els.emptyState.hidden = true;
+  els.emptyState.style.display = "none";
   els.editorViewport.hidden = false;
+  els.editorViewport.style.display = "block";
   els.studioLoading.hidden = false;
   els.studioHost.hidden = true;
   setStatus("직접 편집 엔진 초기화 중…");
@@ -122,6 +124,14 @@ async function openFile(file) {
     state.currentFormat = format;
     state.pageCount = Number(result?.pageCount || 0);
 
+    // v0.4.1: 문서 로드 완료 후 초기 안내 레이어가 편집기를 가리지 않도록 재확정한다.
+    els.emptyState.hidden = true;
+    els.emptyState.style.display = "none";
+    els.editorViewport.hidden = false;
+    els.editorViewport.style.display = "block";
+    els.studioLoading.hidden = true;
+    els.studioHost.hidden = false;
+
     els.documentMeta.textContent =
       `${state.pageCount || "?"}페이지 · 문서 위에서 바로 클릭해 편집 · 서식/표 도구 사용 가능`;
     els.saveButton.disabled = false;
@@ -136,7 +146,9 @@ async function openFile(file) {
     toast(error?.message || "문서를 열 수 없습니다.");
     if (!state.editor) {
       els.emptyState.hidden = false;
+      els.emptyState.style.display = "flex";
       els.editorViewport.hidden = true;
+      els.editorViewport.style.display = "none";
     }
   } finally {
     state.loading = false;

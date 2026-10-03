@@ -8,7 +8,7 @@
 
 ## 현재 안정 기준
 
-**v0.4.0 – Direct WYSIWYG Editing**
+**v0.4.1 – Direct WYSIWYG Editing Hotfix**
 
 v0.3의 “더블클릭 → 팝업 textarea” 편집을 제거하고, self-hosted `rhwp-studio 0.8.6` 편집 UI를 Web HWP Editor 내부에 통합했습니다.
 
@@ -54,3 +54,9 @@ main push 시 GitHub Actions가:
 7. GitHub Pages 배포
 
 자세한 내용은 [DEVELOPMENT_HANDOFF.md](./DEVELOPMENT_HANDOFF.md)를 참고하세요.
+
+
+## v0.4.1 Hotfix
+- HWP 로드 후 페이지 수는 정상 인식되지만 초기 파일 드롭 안내 화면이 편집기 위에 남아 있던 UI 레이어 버그 수정
+- `hidden` 상태를 CSS와 JS 양쪽에서 강제해 실제 Studio 편집 화면이 즉시 노출되도록 보강
+- 문서 로드 완료 시 Studio host visibility를 다시 확정

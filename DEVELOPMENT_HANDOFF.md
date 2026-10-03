@@ -374,3 +374,35 @@ Actions에서 upstream을 `v0.8.6` tag로 고정한다.
 - 표 편집 우클릭 메뉴 간소화
 - 모바일 터치 selection 최적화
 - 자동저장/로컬 복구 UX
+
+
+---
+
+## v0.4.1 - Direct Editor Visibility Hotfix
+기준일: 2026-10-03
+
+### 증상
+- 일반 HWP 파일 파싱 성공
+- 상단 메타데이터에 2페이지 등 페이지 수 정상 표시
+- 그러나 본문에는 초기 "HWP 또는 HWPX 파일을 여기에 놓으세요" 화면이 계속 남음
+- 실제 self-hosted Studio iframe이 아래에 존재하지만 초기 안내 레이어가 workspace 전체 높이를 차지해 가려짐
+
+### 원인
+`.empty-state`에 `display:flex`를 직접 지정하면서 HTML `hidden` 속성에만 의존했다.
+브라우저/CSS 적용 조건에서 author stylesheet의 display 규칙이 hidden 표시 상태와 충돌할 수 있었고,
+결과적으로 문서 로드는 완료됐지만 초기 안내 레이어가 사라지지 않았다.
+
+### 수정
+- 전역 `[hidden]{display:none!important}` 추가
+- `.empty-state[hidden]`, `.editor-viewport[hidden]` 보강
+- JS에서 `hidden`과 `style.display`를 동시에 설정
+- HWP/HWPX loadFile 성공 직후 편집 화면 visibility를 다시 확정
+- load 실패 시 초기 화면 복원도 display 상태까지 명시
+
+### 회귀 체크
+1. HWP 열기
+2. 상단 페이지 수 표시
+3. 초기 드롭 화면 즉시 제거
+4. self-hosted Studio 메뉴/툴바/문서 페이지 표시
+5. 셀 클릭 및 직접 입력
+6. 저장
