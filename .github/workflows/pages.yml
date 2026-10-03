@@ -21,7 +21,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Web HWP Editor
         uses: actions/checkout@v6
 
       - name: Setup Node
@@ -29,28 +29,59 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Install dependencies
+      - name: Install app dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Stage rHWP WASM
-        run: |
-          mkdir -p public
-          cp node_modules/@rhwp/core/rhwp_bg.wasm public/rhwp_bg.wasm
+      - name: Build Web HWP Editor shell
+        run: npm run build
 
-      - name: Build
+      - name: Checkout pinned rhwp Studio v0.8.6
         run: |
-          npm run build
+          git clone --depth 1 --branch v0.8.6 https://github.com/edwardkim/rhwp.git .rhwp
+
+      - name: Install pinned wasm-pack 0.15.0
+        run: |
+          set -euo pipefail
+          rustup target add wasm32-unknown-unknown
+          WASM_PACK_VERSION=0.15.0
+          TARBALL="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl"
+          URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${TARBALL}.tar.gz"
+          TMPDIR="$(mktemp -d)"
+          curl -sSfL --retry 5 --retry-delay 2 -o "${TMPDIR}/wasm-pack.tar.gz" "${URL}"
+          tar -xzf "${TMPDIR}/wasm-pack.tar.gz" -C "${TMPDIR}"
+          mkdir -p "${HOME}/.cargo/bin"
+          cp "${TMPDIR}/${TARBALL}/wasm-pack" "${HOME}/.cargo/bin/wasm-pack"
+          echo "${HOME}/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Build rhwp WASM
+        working-directory: .rhwp
+        run: |
+          wasm-pack build --target web --out-dir pkg --release --locked
+
+      - name: Build self-hosted rhwp Studio
+        working-directory: .rhwp/rhwp-studio
+        env:
+          RHWP_DISABLE_EXTERNAL_WEBFONTS: "1"
+        run: |
+          npm install --no-audit --no-fund
+          npx tsc
+          npx vite build --base=/Web-HWP-Editor/studio/
+
+      - name: Bundle Studio into Web HWP Editor
+        run: |
+          mkdir -p dist/studio
+          cp -R .rhwp/rhwp-studio/dist/. dist/studio/
           touch dist/.nojekyll
 
       - name: Package source
         run: |
-          zip -r Web-HWP-Editor_v0.3.0_Source.zip .             -x ".git/*" "node_modules/*" "dist/*" "Web-HWP-Editor_v0.3.0_Source.zip"
+          zip -r Web-HWP-Editor_v0.4.0_Source.zip .             -x ".git/*" ".rhwp/*" "node_modules/*" "dist/*" "Web-HWP-Editor_v0.4.0_Source.zip"
 
       - name: Upload source package
         uses: actions/upload-artifact@v4
         with:
-          name: Web-HWP-Editor-v0.3.0-Source
-          path: Web-HWP-Editor_v0.3.0_Source.zip
+          name: Web-HWP-Editor-v0.4.0-Source
+          path: Web-HWP-Editor_v0.4.0_Source.zip
           if-no-files-found: error
 
       - name: Setup Pages

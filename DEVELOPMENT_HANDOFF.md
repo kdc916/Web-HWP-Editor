@@ -293,3 +293,84 @@ exportHwp()
 - 외부 iframe 에디터에 문서 bytes를 넘기지 않는다.
 - HWP 엔진과 WASM은 앱 자체 배포 artifact에 포함한다.
 - 저장 전 원본 파일명과 편집 상태를 UI에 명시한다.
+
+
+---
+
+## v0.4.0 - Direct WYSIWYG Editing
+기준일: 2026-10-03
+
+### 사용자 피드백
+v0.3의 HWP 렌더링은 정상이나, 셀 편집이 더블클릭 후 별도 팝업 textarea 방식이라 실제 워드프로세서 사용감과 거리가 있었다.
+
+요구된 방향:
+- 셀/문단을 화면에서 바로 편집
+- 폰트
+- 글자 크기
+- 문단 서식
+- 표 행/열 추가·삭제
+- 셀 병합/나누기
+- 다양한 HWP 편집 기능
+
+### v0.4 결정
+별도 팝업 편집 레이어를 확장하지 않는다.
+
+rhwp 프로젝트의 완성형 `rhwp-studio 0.8.6`를 **같은 GitHub Pages 배포물 안에 self-host**하고 `@rhwp/editor 0.8.6` 브리지로 통합한다.
+
+### 아키텍처
+
+```text
+index.html / js/app.js
+        │
+        │ @rhwp/editor MessageChannel
+        ▼
+/studio/ (same origin)
+        │
+        ├─ rhwp-studio UI
+        ├─ keyboard / Korean IME
+        ├─ selection / caret
+        ├─ format toolbar
+        ├─ table editing
+        └─ rhwp WASM
+```
+
+### 이 방식의 이유
+1. SVG 위에 임의 HTML textarea를 덧씌우는 방식은 selection/caret/IME/표/서식 동기화가 장기적으로 불안정하다.
+2. rhwp-studio에는 이미 같은 WASM Document IR을 사용하는 실제 편집 엔진이 구현돼 있다.
+3. 표 행/열 삽입·삭제, 셀 병합·분할, 글자/문단 서식 API를 다시 중복 구현할 필요가 없다.
+4. 외부 공개 rhwp 페이지에 문서 bytes를 넘기지 않고 self-host 가능하다.
+
+### 배포
+Actions에서 upstream을 `v0.8.6` tag로 고정한다.
+
+- wasm-pack 0.15.0 고정
+- `wasm32-unknown-unknown` target
+- `wasm-pack build --target web --out-dir pkg --release --locked`
+- rhwp-studio TypeScript + Vite build
+- `--base=/Web-HWP-Editor/studio/`
+- external webfont 비활성
+- 결과를 `dist/studio/`에 복사
+
+### v0.4에서 사용자에게 보이는 변화
+- HWP 편집 팝업 삭제
+- 문서 안에서 직접 캐럿 이동/입력
+- Studio 메뉴/툴바 사용
+- 글꼴/사이즈/글자 서식
+- 표 구조 편집
+- Undo/Redo
+- HWP/HWPX 모두 같은 고급 편집 코어 사용
+
+### 회귀 기준
+- 기존 실제 이력서 HWP가 열려야 한다.
+- 페이지 레이아웃이 v0.3 수준 이상 유지되어야 한다.
+- 표 셀 클릭 후 바로 입력 가능해야 한다.
+- 한글 IME 조합이 팝업 없이 동작해야 한다.
+- 저장한 HWP가 다시 열려야 한다.
+- 표 행/열 조작 후 저장 round-trip을 확인한다.
+
+### 다음 패치 후보
+- Web HWP Editor 전용 리본 UI로 Studio 기본 UI 재스킨
+- 사용자 지정 툴바 프리셋
+- 표 편집 우클릭 메뉴 간소화
+- 모바일 터치 selection 최적화
+- 자동저장/로컬 복구 UX

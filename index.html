@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="브라우저에서 HWP/HWPX 문서를 로컬로 열고 편집하는 Web HWP Editor" />
+  <meta name="description" content="브라우저에서 HWP/HWPX 문서를 직접 편집하는 Web HWP Editor" />
   <meta name="theme-color" content="#2563eb" />
   <title>Web HWP Editor</title>
   <link rel="stylesheet" href="./styles.css" />
@@ -14,7 +14,7 @@
       <div class="brand-mark" aria-hidden="true">한</div>
       <div>
         <h1>Web HWP Editor</h1>
-        <p>Local-first HWP / HWPX editor</p>
+        <p>Direct HWP / HWPX editing</p>
       </div>
     </div>
 
@@ -31,11 +31,11 @@
     <section class="info-bar" aria-live="polite">
       <div class="document-summary">
         <strong id="documentName">문서를 열어주세요</strong>
-        <span id="documentMeta">일반 HWP 5.0과 HWPX 파일을 이 창에 끌어놓을 수 있습니다.</span>
+        <span id="documentMeta">문서 위에서 직접 클릭하고 입력할 수 있습니다.</span>
       </div>
       <div class="info-badges">
-        <span id="formatInfo" class="format-badge">v0.3</span>
-        <span class="privacy-badge">문서 서버 전송 없음</span>
+        <span id="formatInfo" class="format-badge">v0.4 · Direct Edit</span>
+        <span class="privacy-badge">Self-hosted · 문서 업로드 없음</span>
       </div>
     </section>
 
@@ -43,68 +43,35 @@
       <div id="emptyState" class="empty-state">
         <div class="empty-icon" aria-hidden="true">HWP</div>
         <h2>HWP 또는 HWPX 파일을 여기에 놓으세요</h2>
-        <p>일반 HWP 5.0은 WASM 엔진으로, HWPX는 XML 편집 엔진으로 브라우저 안에서 처리합니다.</p>
+        <p>팝업 없이 문서 화면에서 바로 편집합니다.</p>
         <button id="emptyOpenButton" class="button button-primary" type="button">파일 선택</button>
-        <ul>
-          <li><strong>.hwp:</strong> 페이지 렌더링 + 문단/표 셀 텍스트 편집 + HWP 다시 저장</li>
-          <li><strong>.hwpx:</strong> 원본 XML 서식 기반 직접 편집 + HWPX 다시 저장</li>
-          <li>문서 파일 자체는 서버에 업로드하지 않고 사용자의 브라우저 메모리에서 처리합니다.</li>
-          <li>HWP에서는 수정할 문단 또는 표 셀을 <strong>더블클릭</strong>하면 텍스트 편집창이 열립니다.</li>
-        </ul>
+        <div class="feature-grid">
+          <span>✓ 직접 클릭·한글 입력</span>
+          <span>✓ 글꼴·글자 크기·굵게·색상</span>
+          <span>✓ 문단 정렬·줄간격</span>
+          <span>✓ 표 행/열 추가·삭제</span>
+          <span>✓ 셀 병합·나누기</span>
+          <span>✓ Undo / Redo</span>
+        </div>
       </div>
 
       <div id="editorViewport" class="editor-viewport" hidden>
-        <div class="editor-toolbar" role="toolbar" aria-label="편집 도구">
-          <button id="undoButton" class="tool-button" type="button" title="실행 취소" disabled>↶</button>
-          <button id="redoButton" class="tool-button" type="button" title="다시 실행" disabled>↷</button>
-          <span class="toolbar-divider"></span>
-
-          <div id="pageNav" class="page-nav" hidden>
-            <button id="prevPageButton" class="tool-button" type="button" title="이전 페이지">‹</button>
-            <span id="pageLabel" class="page-label">1 / 1</span>
-            <button id="nextPageButton" class="tool-button" type="button" title="다음 페이지">›</button>
-            <span class="toolbar-divider"></span>
-          </div>
-
-          <button id="zoomOutButton" class="tool-button" type="button" title="축소">−</button>
-          <span id="zoomLabel" class="zoom-label">100%</span>
-          <button id="zoomInButton" class="tool-button" type="button" title="확대">＋</button>
-          <span class="toolbar-spacer"></span>
-          <span id="editStatus" class="edit-status">편집 준비</span>
+        <div id="studioLoading" class="studio-loading">
+          <div class="spinner"></div>
+          <strong>HWP 편집기 준비 중…</strong>
+          <span>처음 한 번은 편집 엔진을 불러오는 데 시간이 조금 걸릴 수 있습니다.</span>
         </div>
-
-        <div class="canvas-area">
-          <article id="paper" class="paper" aria-label="HWP 문서 편집 영역"></article>
-        </div>
+        <div id="studioHost" class="studio-host" hidden></div>
       </div>
     </section>
   </main>
 
   <footer class="status-bar">
-    <span id="statusText">WASM 엔진 로드 대기</span>
-    <span>Web HWP Editor v0.3.0</span>
+    <span id="statusText">편집기 준비 대기</span>
+    <span>Web HWP Editor v0.4.0</span>
   </footer>
 
-  <div id="hwpEditDialog" class="dialog-backdrop" hidden>
-    <section class="edit-dialog" role="dialog" aria-modal="true" aria-labelledby="hwpEditTitle">
-      <div class="dialog-header">
-        <div>
-          <h2 id="hwpEditTitle">HWP 텍스트 편집</h2>
-          <p id="hwpEditTarget">문단</p>
-        </div>
-        <button id="hwpEditClose" class="dialog-close" type="button" aria-label="닫기">×</button>
-      </div>
-      <textarea id="hwpEditTextarea" class="hwp-edit-textarea" spellcheck="false"></textarea>
-      <p class="dialog-help">현재 단계에서는 선택한 문단 또는 표 셀의 한 문단 텍스트를 통째로 수정합니다. 서식과 표 구조는 유지됩니다.</p>
-      <div class="dialog-actions">
-        <button id="hwpEditCancel" class="button" type="button">취소</button>
-        <button id="hwpEditApply" class="button button-primary" type="button">적용</button>
-      </div>
-    </section>
-  </div>
-
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-
   <script type="module" src="./js/app.js"></script>
 </body>
 </html>
