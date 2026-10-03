@@ -692,3 +692,23 @@ v0.5.2 새 문서는 외부 shell에서 `file:new-doc` automation command를 호
 5. 즉시 입력 가능
 6. 표/쪽/서식 기능 사용 가능
 7. HWP 저장 가능
+
+
+---
+
+## v0.5.4 - New Document First-Load Stability
+기준일: 2026-10-04
+
+### 수정 내용
+- Studio iframe/canvas 초기화 중 `studioHost`를 display:none 상태로 두지 않도록 변경
+- 로딩 오버레이 뒤에서 실제 편집기 영역 크기를 유지하여 0-size 초기화 위험 제거
+- 최초 새 문서 로드 시 `skipUnsavedGuard: true` 적용
+- 기존 문서가 열린 이후 새 문서 전환에는 기존 guard 유지
+- GitHub Pages 배포 자산을 `index-v054-newdoc-safe.js`로 분리해 캐시 충돌 방지
+
+### 기대 동작
+1. 첫 화면에서 새 문서 시작 클릭
+2. 편집기 엔진이 정상 크기로 초기화
+3. blank2010.hwp 즉시 로드
+4. 빈 1페이지가 화면에 표시
+5. 바로 입력 가능
