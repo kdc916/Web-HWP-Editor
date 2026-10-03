@@ -1,5 +1,5 @@
 name: Build v0.5.2 Once
-# revision: persisted-grid-r2
+# revision: persisted-grid-r3-lib-only
 
 on:
   push:
@@ -78,22 +78,14 @@ jobs:
           set -euo pipefail
           node scripts/patch-embedded-studio.mjs .rhwp
           node scripts/verify-table-safety.mjs .rhwp
-          cp tests/web_hwp_table_integrity_regression.rs .rhwp/tests/web_hwp_table_integrity_regression.rs
 
-          cat >> .rhwp/Cargo.toml <<'TEST_TARGETS'
+          # Run our regression suite as a library unit-test module.
+          # This validates the table engine without compiling unrelated CLI/bin targets.
+          sed             -e 's/use rhwp::model/use crate::model/'             -e 's/use rhwp::wasm_api/use crate::wasm_api/'             tests/web_hwp_table_integrity_regression.rs             > .rhwp/src/web_hwp_v052_tests.rs
 
-          [[test]]
-          name = "web_hwp_table_integrity_regression"
-          path = "tests/web_hwp_table_integrity_regression.rs"
-
-          [[test]]
-          name = "issue_4138_split_cell_stale_linesegs"
-          path = "tests/issue_4138_split_cell_stale_linesegs.rs"
-
-          [[test]]
-          name = "issue_4323_merge_cell_reflow"
-          path = "tests/issue_4323_merge_cell_reflow.rs"
-          TEST_TARGETS
+          if ! grep -q 'mod web_hwp_v052_tests;' .rhwp/src/lib.rs; then
+            printf '\n#[cfg(test)]\nmod web_hwp_v052_tests;\n' >> .rhwp/src/lib.rs
+          fi
 
       - name: Install Rust WASM target
         run: rustup target add wasm32-unknown-unknown
@@ -123,9 +115,8 @@ jobs:
         working-directory: .rhwp
         run: |
           set -euo pipefail
-          cargo test --release --test web_hwp_table_integrity_regression -- --nocapture
-          cargo test --release --test issue_4138_split_cell_stale_linesegs -- --nocapture
-          cargo test --release --test issue_4323_merge_cell_reflow -- --nocapture
+          cargo test --release --lib web_hwp_v052_tests -- --nocapture
+          cargo test --release --lib table -- --nocapture
 
       - name: Build patched rhwp WASM
         working-directory: .rhwp
