@@ -67,6 +67,7 @@ jobs:
           /mydocs/
           /samples/
           /examples/
+          /gym/
           SPARSE
           git -C .rhwp fetch --depth=1 --filter=blob:none origin "${RHWP_PIN}"
           git -C .rhwp checkout --detach FETCH_HEAD
