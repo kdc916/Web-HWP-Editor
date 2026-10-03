@@ -194,19 +194,10 @@ async function refreshCommandStates() {
 
   try {
     const commandButtons = $$("[data-command]");
-    const commandIds = [...new Set(
-      commandButtons.map((button) => button.dataset.command).filter(Boolean)
-    )];
-
-    const [docState, selection, commandStates] = await Promise.all([
+    const [docState, selection, commandList] = await Promise.all([
       state.editor.getDocumentState().catch(() => null),
       state.editor.getSelectionContext().catch(() => null),
-      Promise.all(
-        commandIds.map(async (commandId) => [
-          commandId,
-          await state.editor.commands.isEnabled(commandId).catch(() => false),
-        ])
-      ),
+      state.editor.commands.list().catch(() => []),
     ]);
 
     if (docState) {
@@ -222,12 +213,15 @@ async function refreshCommandStates() {
       updatePageUi(selection.page, state.pageCount);
     }
 
-    const enabledMap = new Map(commandStates);
+    const commandMap = new Map(commandList.map((command) => [command.id, command]));
     for (const button of commandButtons) {
       const commandId = button.dataset.command;
       if (!commandId) continue;
-      button.disabled = enabledMap.get(commandId) !== true;
+      const command = commandMap.get(commandId);
+      button.disabled = !command || command.enabled !== true;
       button.setAttribute("aria-disabled", button.disabled ? "true" : "false");
+      if (!command) button.dataset.commandMissing = "true";
+      else delete button.dataset.commandMissing;
     }
   } finally {
     state.monitorBusy = false;
@@ -236,7 +230,7 @@ async function refreshCommandStates() {
 function startStateMonitor() {
   stopStateMonitor();
   refreshCommandStates();
-  state.monitorTimer = window.setInterval(refreshCommandStates, 700);
+  state.monitorTimer = window.setInterval(refreshCommandStates, 900);
 }
 
 function stopStateMonitor() {
