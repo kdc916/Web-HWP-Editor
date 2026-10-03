@@ -8,55 +8,64 @@ https://kdc916.github.io/Web-HWP-Editor/
 
 ## 현재 안정 기준
 
-v0.5.0 – New Document & Table Reliability
+**v0.5.1 – Table Integrity & Regression Guard**
 
-### 새 문서
-- HWP 파일을 먼저 열 필요 없이 새 문서 버튼으로 빈 HWP 문서 생성
-- 첫 화면에서 새 문서 시작
-- 상단 헤더와 Quick Ribbon에서도 새 문서 생성
-- 새 문서를 HWP로 바로 저장
+이번 버전은 표 편집 안정성에 집중합니다.
 
-### 쪽
-- Quick Ribbon에 새 쪽 추가
-- 현재 커서 위치에서 page:break 실행
-- Ctrl+Enter과 동일한 HWP 쪽 나누기
+### 수정 대상
 
-### 표
-- Quick Ribbon에 표 만들기 추가
+사용자 재현:
+- 3×3 표 생성
+- 셀 높이 같게
+- 오른쪽 3개 셀 세로 병합
+- 오른쪽 병합 셀 하단과 왼쪽 표 하단이 어긋남
+
+원인은 구버전 Studio에서 화면용 local resize geometry와 HWP에 실제 저장되는 셀 width/height가 섞일 수 있었던 점입니다. 병합은 저장된 행 높이 합을 기준으로 계산하므로 두 기준이 다르면 병합 셀 높이가 달라질 수 있습니다.
+
+### v0.5.1 변경
+
+- embedded Studio를 `/studio-v051/`로 버전 격리
+- embedded Studio의 PWA / Service Worker 제거
+- 이전 `/studio/` Service Worker 자동 unregister
+- 모든 Quick Ribbon 버튼을 실제 `commands.isEnabled()` 상태와 동기화
+- `셀 높이/너비 같게`를 **표 전체 저장형 균등화**로 교체
+- 일반 셀뿐 아니라 병합 셀도 row/column span 합으로 width/height 동기화
+- 균등화는 Snapshot transaction으로 실행하여 Undo/Redo 지원
+- 중첩표 등 안전한 독립 grid를 만들 수 없는 경우 추정하지 않고 동작 중단
+
+### 표 회귀 테스트
+
+배포 전에 CI에서 다음을 자동 검사합니다.
+
+1. 서로 다른 3개 행 높이 생성
+2. 표 전체 높이 균등화
+3. 오른쪽 3개 셀 세로 병합
+4. 병합 셀 저장 height == 걸친 행 height 합
+5. 좌측 표 하단 == 우측 병합 셀 하단
+6. HWP 저장 → 다시 열기 → 하단 재검증
+7. 병합 셀 다시 나누기 → 각 행 y/height 재검증
+8. 3×3 표에서 merge → split → row/column insert → row/column delete 후 모든 grid 좌표가 정확히 한 셀에만 포함되는지 검증
+9. upstream #4138 split stale line segment 회귀
+10. upstream #4323 merge text reflow 회귀
+
+테스트 하나라도 실패하면 GitHub Pages 새 버전을 배포하지 않습니다.
+
+### 기능
+
+- 새 문서
+- 새 쪽
+- 표 만들기
 - 줄/칸 추가·삭제
-- 셀 합치기
-- 셀 나누기
-- 셀 너비/높이 같게
-- 표/셀 속성
+- 셀 합치기·나누기
+- 표 전체 높이/너비 같게
+- 글자/문단 서식
+- HWP/HWPX 저장
+- PDF/인쇄
 
-### 표/셀 나누기 신뢰성 수정
-기존 v0.4.x는 공개 태그 v0.8.6의 사전 빌드 WASM을 사용했습니다.
+### 엔진
 
-v0.5.0부터는 rhwp의 수정 커밋을 정확한 SHA로 고정하고 WASM과 Studio를 GitHub Actions에서 같은 소스로 직접 빌드합니다.
+Pinned rhwp core:
 
-Pinned core:
-6b3faf77d8085441f9f26d88d65a49791e910352
+`6b3faf77d8085441f9f26d88d65a49791e910352`
 
-이 커밋에는 upstream #4138 셀 분할 회귀 가드가 포함되어 있습니다.
-
-분할 뒤 셀 폭이 줄었는데도 예전 폭 기준 line segment가 남아 발생하던 다음 문제를 보정하는 경로가 포함됩니다.
-- 글자가 셀 경계에서 잘리는 문제
-- 셀 내부 줄 배치가 틀어지는 문제
-- vpos 흐름이 무너지는 문제
-- 분할 후 페이지네이션이 달라지는 문제
-
-### 로컬 처리
-- 외부 편집 사이트 iframe을 사용하지 않음
-- Studio와 WASM을 동일 GitHub Pages origin에 self-host
-- 사용자가 연 문서 파일은 서버 업로드 API로 전송하지 않음
-
-## 기술 구조
-- Web HWP Editor v0.5 shell
-- Quick Ribbon
-- @rhwp/editor 0.8.6 bridge
-- self-hosted rhwp Studio from pinned commit
-- fresh rhwp WASM from the same pinned commit
-
-브리지 파일은 v0.8.6 tag와 pinned commit에서 동일한 SHA임을 확인한 뒤 유지했습니다.
-
-자세한 개발 이력은 DEVELOPMENT_HANDOFF.md를 참고하세요.
+WASM과 Studio를 같은 pinned source에서 빌드합니다.
