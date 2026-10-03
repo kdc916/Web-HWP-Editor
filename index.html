@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="브라우저에서 HWPX 문서를 열고 간단히 수정하는 로컬 우선 웹 편집기" />
+  <meta name="description" content="브라우저에서 HWPX 문서를 로컬로 열고 편집하는 Web HWP Editor" />
+  <meta name="theme-color" content="#2563eb" />
   <title>Web HWP Editor</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
@@ -21,28 +22,33 @@
       <input id="fileInput" type="file" accept=".hwpx,application/zip" hidden />
       <button id="openButton" class="button button-primary" type="button">HWPX 열기</button>
       <button id="saveButton" class="button" type="button" disabled>HWPX 저장</button>
+      <button id="printButton" class="button" type="button" disabled>PDF / 인쇄</button>
     </div>
   </header>
 
   <main class="app-shell">
     <section class="info-bar" aria-live="polite">
-      <div>
+      <div class="document-summary">
         <strong id="documentName">문서를 열어주세요</strong>
         <span id="documentMeta">HWPX 파일을 이 창에 끌어놓아도 됩니다.</span>
       </div>
-      <span class="privacy-badge">문서 서버 전송 없음</span>
+      <div class="info-badges">
+        <span id="formatInfo" class="format-badge">v0.2</span>
+        <span class="privacy-badge">문서 서버 전송 없음</span>
+      </div>
     </section>
 
     <section id="dropZone" class="workspace" tabindex="0">
       <div id="emptyState" class="empty-state">
         <div class="empty-icon" aria-hidden="true">HWPX</div>
         <h2>HWPX 파일을 여기에 놓으세요</h2>
-        <p>현재 v0.1은 HWPX 문서의 텍스트와 표 셀을 로컬 브라우저에서 편집합니다.</p>
+        <p>문서 서식·표·이미지를 브라우저 안에서 분석하고 텍스트를 수정합니다.</p>
         <button id="emptyOpenButton" class="button button-primary" type="button">파일 선택</button>
         <ul>
-          <li>파일은 브라우저 안에서만 처리됩니다.</li>
-          <li>원본 HWPX 구조와 이미지·스타일 리소스를 최대한 유지합니다.</li>
-          <li>복잡한 개체/페이지 레이아웃은 후속 버전에서 확장합니다.</li>
+          <li>문서 파일은 서버로 업로드하지 않고 브라우저 메모리에서 처리합니다.</li>
+          <li>글자 크기·굵기·색상, 문단 정렬/간격, 페이지 크기/여백을 원본에서 읽습니다.</li>
+          <li>표 병합 셀과 HWPX 내부 BinData 이미지를 표시합니다.</li>
+          <li>아직 지원하지 않는 개체는 원본 패키지에 그대로 보존하는 방향으로 개발합니다.</li>
         </ul>
       </div>
 
@@ -67,7 +73,7 @@
 
   <footer class="status-bar">
     <span id="statusText">준비됨</span>
-    <span>Web HWP Editor v0.1.0</span>
+    <span>Web HWP Editor v0.2.0</span>
   </footer>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
