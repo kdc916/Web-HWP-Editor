@@ -36,7 +36,7 @@
       <div class="info-badges">
         <span id="dirtyBadge" class="state-badge" hidden>저장됨</span>
         <span class="engine-badge">Table Integrity Core</span>
-        <span id="formatInfo" class="format-badge">v0.5.1</span>
+        <span id="formatInfo" class="format-badge">v0.5.2</span>
         <span class="privacy-badge">Self-hosted · 문서 업로드 없음</span>
       </div>
     </section>
@@ -104,8 +104,8 @@
           <button class="ribbon-btn text-btn table-command" type="button" data-command="table:delete-row-col" data-dialog="true">줄/칸 삭제</button>
           <button class="ribbon-btn text-btn table-command merge-command" type="button" data-command="table:cell-merge">셀 합치기</button>
           <button class="ribbon-btn text-btn table-command split-command" type="button" data-command="table:cell-split" data-dialog="true">셀 나누기</button>
-          <button class="ribbon-btn text-btn table-command" type="button" data-command="table:cell-width-equal" title="표 전체 열을 저장 가능한 기준 그리드로 균등화">전체 너비 같게</button>
-          <button class="ribbon-btn text-btn table-command" type="button" data-command="table:cell-height-equal" title="표 전체 행을 저장 가능한 기준 그리드로 균등화">전체 높이 같게</button>
+          <button class="ribbon-btn text-btn table-command" type="button" data-command="table:cell-width-equal" title="선택한 셀의 열 너비를 실제 HWP 저장 그리드 기준으로 균등화">셀 너비를 같게</button>
+          <button class="ribbon-btn text-btn table-command" type="button" data-command="table:cell-height-equal" title="선택한 셀의 행 높이를 실제 HWP 저장 그리드 기준으로 균등화">셀 높이를 같게</button>
           <button class="ribbon-btn text-btn table-command" type="button" data-command="table:cell-props" data-dialog="true">표/셀 속성</button>
         </div>
 
@@ -154,9 +154,9 @@
       <span id="statusText">편집기 준비 대기</span>
       <span id="pageStatus" class="status-chip" hidden></span>
       <span id="saveStatus" class="status-chip" hidden></span>
-      <span class="status-chip engine-status">Core 2026-10-03 pinned</span>
+      <span class="status-chip engine-status">Core 680111ec · table-safe</span>
     </div>
-    <span>Web HWP Editor v0.5.1</span>
+    <span>Web HWP Editor v0.5.2</span>
   </footer>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
