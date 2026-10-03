@@ -1,57 +1,26 @@
-# Web HWP Editor
+# Web HWP Editor v0.5.4
 
-브라우저에서 HWP / HWPX를 직접 작성·열기·편집·저장하는 Local-first 웹 에디터입니다.
+브라우저에서 HWP/HWPX를 열고 직접 편집·저장하는 웹 편집기입니다. 문서 데이터는 서버에 업로드하지 않습니다.
 
-## Live
+## v0.5.4 핵심 개선
+- 새 문서 초기화 안정화 및 실패/재시도 처리
+- 저장하지 않은 문서 교체 보호
+- 상대 경로 기반 GitHub Pages 배포
+- 표 전체 선택, 셀 높이/너비 균등화 개선
+- 병합/나누기 잘못된 선택 차단 및 오류 안내
+- 저장 중 중복 실행 방지, Ctrl+S 통합
+- HWP/HWPX 저장 및 인쇄 명령 연결
+- 표 계산 단위 테스트 및 브라우저 회귀 테스트 구조 추가
 
-https://kdc916.github.io/Web-HWP-Editor/
+## 배포
+GitHub **Settings → Pages → Deploy from a branch → main / docs** 를 사용합니다.
+별도 GitHub Actions 빌드는 필요하지 않습니다.
 
-## 배포 구조
+## 개발
+```sh
+npm start
+npm run build
+npm test
+```
 
-GitHub Pages는 **Actions 자동 배포가 아니라 `main / docs` 정적 배포**를 사용합니다.
-
-- 소스 코드: repository root
-- 실제 배포본: `/docs`
-- 일반 커밋 시 Actions 실행 없음
-- 검증된 빌드 결과만 `docs/`로 교체
-- Pages는 `main` 브랜치의 `/docs`를 그대로 서비스
-
-### GitHub Pages 설정
-
-Repository → **Settings → Pages**
-
-- Build and deployment: **Deploy from a branch**
-- Branch: **main**
-- Folder: **/docs**
-- Save
-
-## 현재 배포본
-
-현재 `docs/`에는 마지막으로 정상 검증된 **stable-static-v0.5.0** 배포본이 들어 있습니다.
-
-v0.5.1 표 무결성 수정은 개발 소스에 남겨두고, 회귀 검증 후 정적 배포본으로 교체합니다.
-
-## 왜 Actions 자동 배포를 제거했나
-
-기존 구성은 매 커밋마다 아래 작업을 모두 실행했습니다.
-
-- npm / Vite build
-- rhwp upstream fetch
-- Rust compile
-- WASM build
-- table regression tests
-- Studio build
-- GitHub Pages deploy
-
-이 구조는 개발 중 작은 수정에도 전체 빌드를 반복하고, upstream fixture나 Rust 환경 문제로 배포가 자주 막혔습니다.
-
-이제는 **개발/테스트와 실제 웹 배포를 분리**합니다. Pages는 단순 정적 호스팅만 담당합니다.
-
-
-## v0.5.3 - Reliable New Document
-
-- 새 문서 생성 경로를 Studio 내부 `file:new-doc` 이벤트에서 분리했습니다.
-- rhwp 공식 빈 문서 템플릿 `blank2010.hwp`를 정적 자산으로 포함합니다.
-- 새 문서는 일반 HWP 열기와 동일한 `editor.loadFile()` 경로를 사용합니다.
-- 내부 비동기 이벤트 실패가 부모 UI에 전달되지 않아 아무 화면도 뜨지 않던 문제를 제거했습니다.
-- 새 문서는 `새 문서.hwp`로 열리고 HWP 저장이 가능합니다.
+자세한 내용은 `DEPLOY.md`, `TEST_REPORT.md`, `DEVELOPMENT_HANDOFF.md`를 참고하세요.
