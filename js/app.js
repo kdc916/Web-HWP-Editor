@@ -68,11 +68,11 @@ function getFormat(fileName) {
   return null;
 }
 
-const EMBEDDED_STUDIO_BUILD = "v0.5.1-table-integrity";
+const EMBEDDED_STUDIO_BUILD = "v0.5.2-table-safe";
 
 function getStudioUrl() {
   return new URL(
-    import.meta.env.BASE_URL + "studio-v051/?build=" + encodeURIComponent(EMBEDDED_STUDIO_BUILD),
+    import.meta.env.BASE_URL + "studio-v052/?build=" + encodeURIComponent(EMBEDDED_STUDIO_BUILD),
     window.location.origin
   ).href;
 }
@@ -269,9 +269,9 @@ async function executeStudioCommand(commandId, params, allowDialog) {
     } else if (commandId === "table:cell-split") {
       toast("셀 나누기 설정을 열었습니다. 구조/줄배치 회귀검사가 적용됩니다.");
     } else if (commandId === "table:cell-height-equal") {
-      toast("표 전체 행 높이를 저장 가능한 기준 그리드로 맞췄습니다.");
+      toast("선택한 셀의 행 높이를 실제 HWP 저장 그리드로 맞췄습니다.");
     } else if (commandId === "table:cell-width-equal") {
-      toast("표 전체 열 너비를 저장 가능한 기준 그리드로 맞췄습니다.");
+      toast("선택한 셀의 열 너비를 실제 HWP 저장 그리드로 맞췄습니다.");
     }
 
     window.setTimeout(async () => {
