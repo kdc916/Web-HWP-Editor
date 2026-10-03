@@ -1,45 +1,79 @@
 # Web HWP Editor
 
-브라우저에서 HWPX 문서를 열고 간단히 수정할 수 있는 **Local-first 웹 편집기**입니다.
+설치 없이 브라우저에서 HWPX 문서를 열고 수정하는 **Local-first 웹 편집기**입니다.
 
-## 현재 버전
-**v0.1.0 MVP**
+> 문서 파일 자체는 서버로 업로드하지 않고 사용자의 브라우저 메모리에서 처리합니다.
 
-### 구현
+## Live
+
+GitHub Pages 배포 주소:
+
+**https://kdc916.github.io/Web-HWP-Editor/**
+
+## 현재 안정 기준
+
+**v0.2.0 – Rendering Fidelity**
+
+### v0.2.0 구현
 - HWPX 파일 선택 / Drag & Drop
-- 브라우저 내부에서 ZIP 패키지 분석
-- `Contents/section*.xml` 탐색
-- 일반 문단 텍스트 편집
-- 표 셀 텍스트 편집
-- 원본 HWPX 패키지의 나머지 리소스를 유지한 상태로 다시 저장
+- `Contents/header.xml` 서식 테이블 파싱
+- `charPr` 기반 글자 크기 / 색상 / 굵게 / 기울임 / 밑줄 / 취소선 / 글꼴 / 자간 표시
+- `paraPr` 기반 문단 정렬 / 줄 간격 / 여백 / 들여쓰기 표시
+- `secPr/pagePr` 기반 실제 페이지 크기 및 여백 반영
+- `cellSpan` 기반 표 `rowspan` / `colspan` 표시
+- `content.hpf` manifest → `BinData` 이미지 연결 및 브라우저 렌더링
+- 텍스트 및 표 셀 수정
+- 원본 HWPX ZIP 패키지 기반 재저장
 - Undo / Redo
 - 확대 / 축소
 - Cmd/Ctrl + S 저장
-- 서버 업로드 없는 로컬 처리
+- 브라우저 PDF / 인쇄
+- GitHub Pages 자동 배포 워크플로
 
-### 현재 한계
+### 이전 v0.1.0
+- HWPX ZIP 로드
+- `Contents/section*.xml` 탐색
+- 일반 문단 / 표 셀 텍스트 편집
+- 원본 리소스 보존형 저장 기반
+
+## 현재 한계
 - `.hwp` 바이너리 파일은 아직 미지원
-- HWPX 원본의 정확한 페이지 배치, 글꼴, 자간, 장평, 도형, 차트, 각주/미주 렌더링은 미구현
-- 현재 편집 화면은 문서 구조를 단순화한 MVP 렌더러
-- 복잡한 표의 병합 셀은 시각적으로 원본과 다를 수 있음
-- JSZip은 CDN을 사용하므로 최초 접속 시 네트워크가 필요함
+- 여러 서식 Run이 섞인 문단은 Run 단위로 클릭해 편집하는 방식
+- Enter로 새 문단 생성은 아직 미지원
+- 표의 정확한 BorderFill, 셀 배경색 등은 후속 패치 대상
+- 그림 위치/텍스트 감싸기/도형/차트/수식은 원본 수준 렌더링 미지원
+- 페이지 자동 줄바꿈/페이지네이션은 아직 브라우저의 실제 레이아웃과 한컴 결과가 완전히 동일하지 않음
+- JSZip은 CDN에서 불러오므로 앱 최초 로드에는 인터넷 연결이 필요함
 
-## 실행
-별도 빌드 과정이 없습니다. 정적 서버에서 루트 폴더를 서비스하면 됩니다.
+## 로컬 실행
+별도 빌드가 필요 없는 정적 웹 앱입니다.
 
-예:
 ```bash
 python3 -m http.server 8080
 ```
 
 브라우저에서 `http://localhost:8080` 접속.
 
-GitHub Pages에서도 그대로 사용할 수 있습니다.
+## 구조
+
+```text
+index.html
+styles.css
+js/
+  app.js
+  hwpx.js
+.github/
+  workflows/
+    pages.yml
+.nojekyll
+README.md
+DEVELOPMENT_HANDOFF.md
+```
 
 ## 설계 원칙
-1. 문서는 서버에 업로드하지 않는다.
-2. HWPX 패키지의 미지원 리소스는 가능한 한 손대지 않는다.
-3. v0.x 단계에서는 HWPX를 주 편집 포맷으로 사용한다.
-4. HWP는 향후 Import → Internal Model → HWPX 저장 순으로 확장한다.
+1. 문서 파일은 서버에 업로드하지 않는다.
+2. 지원하지 않는 HWPX 요소는 저장 시 가능한 한 원본 ZIP 내부에 그대로 보존한다.
+3. HWPX를 우선 편집 포맷으로 완성한 다음 `.hwp` Import를 확장한다.
+4. 브라우저 화면과 한컴 출력 차이는 실제 샘플 문서를 통한 회귀 테스트로 줄인다.
 
-자세한 개발 계획은 [DEVELOPMENT_HANDOFF.md](./DEVELOPMENT_HANDOFF.md)를 참고하세요.
+자세한 개발 계획과 변경 이력은 [DEVELOPMENT_HANDOFF.md](./DEVELOPMENT_HANDOFF.md)를 참고하세요.
