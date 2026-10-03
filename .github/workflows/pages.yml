@@ -90,6 +90,20 @@ jobs:
           node scripts/patch-embedded-studio.mjs .rhwp
           node scripts/verify-table-safety.mjs .rhwp
           cp tests/web_hwp_table_integrity_regression.rs .rhwp/tests/web_hwp_table_integrity_regression.rs
+          cat >> .rhwp/Cargo.toml <<'TEST_TARGETS'
+
+          [[test]]
+          name = "web_hwp_table_integrity_regression"
+          path = "tests/web_hwp_table_integrity_regression.rs"
+
+          [[test]]
+          name = "issue_4138_split_cell_stale_linesegs"
+          path = "tests/issue_4138_split_cell_stale_linesegs.rs"
+
+          [[test]]
+          name = "issue_4323_merge_cell_reflow"
+          path = "tests/issue_4323_merge_cell_reflow.rs"
+          TEST_TARGETS
 
       - name: Install Rust WASM target
         run: rustup target add wasm32-unknown-unknown
