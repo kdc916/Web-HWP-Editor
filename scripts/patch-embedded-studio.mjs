@@ -284,7 +284,7 @@ function patchStudioEqualizationRegressionTest() {
     "});",
     "",
   ];
-  writeFileSync(file, lines.join('\\n'));
+  writeFileSync(file, lines.join(String.fromCharCode(10)));
 }
 
 patchEmbeddedVite();
