@@ -6,66 +6,43 @@
 
 https://kdc916.github.io/Web-HWP-Editor/
 
-## 현재 안정 기준
+## 배포 구조
 
-**v0.5.1 – Table Integrity & Regression Guard**
+GitHub Pages는 **Actions 자동 배포가 아니라 `main / docs` 정적 배포**를 사용합니다.
 
-이번 버전은 표 편집 안정성에 집중합니다.
+- 소스 코드: repository root
+- 실제 배포본: `/docs`
+- 일반 커밋 시 Actions 실행 없음
+- 검증된 빌드 결과만 `docs/`로 교체
+- Pages는 `main` 브랜치의 `/docs`를 그대로 서비스
 
-### 수정 대상
+### GitHub Pages 설정
 
-사용자 재현:
-- 3×3 표 생성
-- 셀 높이 같게
-- 오른쪽 3개 셀 세로 병합
-- 오른쪽 병합 셀 하단과 왼쪽 표 하단이 어긋남
+Repository → **Settings → Pages**
 
-원인은 구버전 Studio에서 화면용 local resize geometry와 HWP에 실제 저장되는 셀 width/height가 섞일 수 있었던 점입니다. 병합은 저장된 행 높이 합을 기준으로 계산하므로 두 기준이 다르면 병합 셀 높이가 달라질 수 있습니다.
+- Build and deployment: **Deploy from a branch**
+- Branch: **main**
+- Folder: **/docs**
+- Save
 
-### v0.5.1 변경
+## 현재 배포본
 
-- embedded Studio를 `/studio-v051/`로 버전 격리
-- embedded Studio의 PWA / Service Worker 제거
-- 이전 `/studio/` Service Worker 자동 unregister
-- 모든 Quick Ribbon 버튼을 실제 `commands.isEnabled()` 상태와 동기화
-- `셀 높이/너비 같게`를 **표 전체 저장형 균등화**로 교체
-- 일반 셀뿐 아니라 병합 셀도 row/column span 합으로 width/height 동기화
-- 균등화는 Snapshot transaction으로 실행하여 Undo/Redo 지원
-- 중첩표 등 안전한 독립 grid를 만들 수 없는 경우 추정하지 않고 동작 중단
+현재 `docs/`에는 마지막으로 정상 검증된 **stable-static-v0.5.0** 배포본이 들어 있습니다.
 
-### 표 회귀 테스트
+v0.5.1 표 무결성 수정은 개발 소스에 남겨두고, 회귀 검증 후 정적 배포본으로 교체합니다.
 
-배포 전에 CI에서 다음을 자동 검사합니다.
+## 왜 Actions 자동 배포를 제거했나
 
-1. 서로 다른 3개 행 높이 생성
-2. 표 전체 높이 균등화
-3. 오른쪽 3개 셀 세로 병합
-4. 병합 셀 저장 height == 걸친 행 height 합
-5. 좌측 표 하단 == 우측 병합 셀 하단
-6. HWP 저장 → 다시 열기 → 하단 재검증
-7. 병합 셀 다시 나누기 → 각 행 y/height 재검증
-8. 3×3 표에서 merge → split → row/column insert → row/column delete 후 모든 grid 좌표가 정확히 한 셀에만 포함되는지 검증
-9. upstream #4138 split stale line segment 회귀
-10. upstream #4323 merge text reflow 회귀
+기존 구성은 매 커밋마다 아래 작업을 모두 실행했습니다.
 
-테스트 하나라도 실패하면 GitHub Pages 새 버전을 배포하지 않습니다.
+- npm / Vite build
+- rhwp upstream fetch
+- Rust compile
+- WASM build
+- table regression tests
+- Studio build
+- GitHub Pages deploy
 
-### 기능
+이 구조는 개발 중 작은 수정에도 전체 빌드를 반복하고, upstream fixture나 Rust 환경 문제로 배포가 자주 막혔습니다.
 
-- 새 문서
-- 새 쪽
-- 표 만들기
-- 줄/칸 추가·삭제
-- 셀 합치기·나누기
-- 표 전체 높이/너비 같게
-- 글자/문단 서식
-- HWP/HWPX 저장
-- PDF/인쇄
-
-### 엔진
-
-Pinned rhwp core:
-
-`6b3faf77d8085441f9f26d88d65a49791e910352`
-
-WASM과 Studio를 같은 pinned source에서 빌드합니다.
+이제는 **개발/테스트와 실제 웹 배포를 분리**합니다. Pages는 단순 정적 호스팅만 담당합니다.
