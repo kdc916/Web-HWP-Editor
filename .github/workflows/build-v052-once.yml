@@ -1,0 +1,197 @@
+name: Build v0.5.2 Once
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/build-v052-once.yml"
+
+permissions:
+  contents: write
+
+env:
+  RHWP_PIN: "680111ec7bea2fe11110de18c3676ba5a1cf7847"
+  WASM_PACK_VERSION: "0.15.0"
+
+jobs:
+  verify-build-static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout Web HWP Editor
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install Web HWP Editor dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build Web HWP Editor shell
+        run: npm run build
+
+      - name: Fetch pinned rhwp source
+        run: |
+          set -euo pipefail
+          rm -rf .rhwp
+          git init .rhwp
+          git -C .rhwp remote add origin https://github.com/edwardkim/rhwp.git
+          git -C .rhwp config core.sparseCheckout true
+          mkdir -p .rhwp/.git/info
+          cat > .rhwp/.git/info/sparse-checkout <<'SPARSE'
+          /*
+          !/*/
+          /src/
+          /crates/
+          /vendor/
+          /rhwp-studio/
+          /rhwp-shared/
+          /assets/
+          /saved/
+          /ttfs/
+          /scripts/
+          /npm/
+          /bindings/
+          /tools/
+          /web/
+          /tests/
+          /mydocs/
+          /samples/
+          SPARSE
+          git -C .rhwp fetch --depth=1 --filter=blob:none origin "${RHWP_PIN}"
+          git -C .rhwp checkout --detach FETCH_HEAD
+          test "$(git -C .rhwp rev-parse HEAD)" = "${RHWP_PIN}"
+
+      - name: Apply Web HWP Editor table-safe patch
+        run: |
+          set -euo pipefail
+          node scripts/patch-embedded-studio.mjs .rhwp
+          node scripts/verify-table-safety.mjs .rhwp
+          cp tests/web_hwp_table_integrity_regression.rs .rhwp/tests/web_hwp_table_integrity_regression.rs
+
+          cat >> .rhwp/Cargo.toml <<'TEST_TARGETS'
+
+          [[test]]
+          name = "web_hwp_table_integrity_regression"
+          path = "tests/web_hwp_table_integrity_regression.rs"
+
+          [[test]]
+          name = "issue_4138_split_cell_stale_linesegs"
+          path = "tests/issue_4138_split_cell_stale_linesegs.rs"
+
+          [[test]]
+          name = "issue_4323_merge_cell_reflow"
+          path = "tests/issue_4323_merge_cell_reflow.rs"
+          TEST_TARGETS
+
+      - name: Install Rust WASM target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install pinned wasm-pack
+        run: |
+          set -euo pipefail
+          TARBALL="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl"
+          URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${TARBALL}.tar.gz"
+          TMPDIR="$(mktemp -d)"
+          curl -sSfL --retry 5 --retry-delay 2 --retry-all-errors             -o "${TMPDIR}/wasm-pack.tar.gz" "${URL}"
+          tar -xzf "${TMPDIR}/wasm-pack.tar.gz" -C "${TMPDIR}"
+          mkdir -p "${HOME}/.cargo/bin"
+          cp "${TMPDIR}/${TARBALL}/wasm-pack" "${HOME}/.cargo/bin/wasm-pack"
+          echo "${HOME}/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            .rhwp/target
+          key: ${{ runner.os }}-rhwp-v052-${{ env.RHWP_PIN }}
+
+      - name: Run Web HWP table integrity regressions
+        working-directory: .rhwp
+        run: |
+          set -euo pipefail
+          cargo test --release --test web_hwp_table_integrity_regression -- --nocapture
+          cargo test --release --test issue_4138_split_cell_stale_linesegs -- --nocapture
+          cargo test --release --test issue_4323_merge_cell_reflow -- --nocapture
+
+      - name: Build patched rhwp WASM
+        working-directory: .rhwp
+        run: wasm-pack build --target web --release
+
+      - name: Stage patched WASM into Studio
+        run: |
+          set -euo pipefail
+          cp .rhwp/pkg/rhwp_bg.wasm .rhwp/rhwp-studio/public/rhwp_bg.wasm
+          cp .rhwp/pkg/rhwp.js .rhwp/rhwp-studio/public/rhwp.js
+          cp .rhwp/pkg/rhwp.d.ts .rhwp/rhwp-studio/public/rhwp.d.ts
+
+      - name: Install Studio dependencies
+        working-directory: .rhwp/rhwp-studio
+        run: npm install --no-audit --no-fund
+
+      - name: Run Studio test suite
+        working-directory: .rhwp/rhwp-studio
+        env:
+          RHWP_WITHOUT_HWPCTRL: "1"
+        run: npm test
+
+      - name: Build self-hosted Studio
+        working-directory: .rhwp/rhwp-studio
+        env:
+          RHWP_WITHOUT_HWPCTRL: "1"
+          RHWP_DISABLE_EXTERNAL_WEBFONTS: "1"
+        run: |
+          npx tsc
+          npx vite build --base=/Web-HWP-Editor/studio-v052/
+
+      - name: Assemble static production docs
+        run: |
+          set -euo pipefail
+          rm -rf docs
+          mkdir -p docs/studio-v052
+          cp -R dist/. docs/
+          cp -R .rhwp/rhwp-studio/dist/. docs/studio-v052/
+          rm -f docs/studio-v052/sw.js docs/studio-v052/registerSW.js docs/studio-v052/manifest.webmanifest
+          touch docs/.nojekyll
+          printf "v0.5.2-table-safe\n" > docs/DEPLOYED_VERSION.txt
+          printf "%s\n" "${RHWP_PIN}" > docs/RHWP_CORE_COMMIT.txt
+
+      - name: Static deployment sanity checks
+        run: |
+          set -euo pipefail
+          test -f docs/index.html
+          test -f docs/studio-v052/index.html
+          test -f docs/studio-v052/rhwp.js
+          test -f docs/studio-v052/rhwp_bg.wasm
+          grep -q "v0.5.2" docs/index.html
+          ! grep -R "registerSW.js" docs/studio-v052/index.html
+
+      - name: Package verified outputs
+        run: |
+          set -euo pipefail
+          zip -r Web-HWP-Editor_v0.5.2_Pages.zip docs
+          zip -r Web-HWP-Editor_v0.5.2_Source.zip .             -x ".git/*" ".rhwp/*" "node_modules/*" "dist/*" "docs/*"                "Web-HWP-Editor_v0.5.2_Pages.zip" "Web-HWP-Editor_v0.5.2_Source.zip"
+
+      - name: Upload verified artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Web-HWP-Editor-v0.5.2-Verified
+          path: |
+            Web-HWP-Editor_v0.5.2_Pages.zip
+            Web-HWP-Editor_v0.5.2_Source.zip
+          if-no-files-found: error
+
+      - name: Commit verified static site
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A docs
+          git commit -m "deploy: publish verified v0.5.2 table-safe static site"
+          git push origin HEAD:main
