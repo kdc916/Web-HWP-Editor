@@ -42,6 +42,17 @@ jobs:
           npm run build
           touch dist/.nojekyll
 
+      - name: Package source
+        run: |
+          zip -r Web-HWP-Editor_v0.3.0_Source.zip .             -x ".git/*" "node_modules/*" "dist/*" "Web-HWP-Editor_v0.3.0_Source.zip"
+
+      - name: Upload source package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Web-HWP-Editor-v0.3.0-Source
+          path: Web-HWP-Editor_v0.3.0_Source.zip
+          if-no-files-found: error
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
