@@ -84,6 +84,12 @@ jobs:
           grep -q "id: 'page:break'" .rhwp/rhwp-studio/src/command/commands/page.ts
           grep -q "id: 'table:create'" .rhwp/rhwp-studio/src/command/commands/table.ts
           grep -q "id: 'table:cell-split'" .rhwp/rhwp-studio/src/command/commands/table.ts
+      - name: Apply Web HWP Editor table safety patch
+        run: |
+          set -euo pipefail
+          node scripts/patch-embedded-studio.mjs .rhwp
+          node scripts/verify-table-safety.mjs .rhwp
+          cp tests/web_hwp_table_integrity_regression.rs .rhwp/tests/web_hwp_table_integrity_regression.rs
 
       - name: Install Rust WASM target
         run: rustup target add wasm32-unknown-unknown
@@ -114,6 +120,12 @@ jobs:
             ${{ runner.os }}-rhwp-${{ env.RHWP_PINNED_COMMIT }}-
             ${{ runner.os }}-rhwp-
 
+      - name: Run focused table integrity regression tests
+        working-directory: .rhwp
+        run: |
+          cargo test --release --test web_hwp_table_integrity_regression -- --nocapture
+          cargo test --release --test issue_4138_split_cell_stale_linesegs -- --nocapture
+          cargo test --release --test issue_4323_merge_cell_reflow -- --nocapture
       - name: Build pinned rhwp WASM
         working-directory: .rhwp
         run: wasm-pack build --target web --release
@@ -132,25 +144,25 @@ jobs:
         run: |
           npm install --no-audit --no-fund
           npx tsc
-          npx vite build --base=/Web-HWP-Editor/studio/
+          npx vite build --base=/Web-HWP-Editor/studio-v051/
 
       - name: Bundle Studio into Web HWP Editor
         run: |
-          mkdir -p dist/studio
-          cp -R .rhwp/rhwp-studio/dist/. dist/studio/
+          mkdir -p dist/studio-v051
+          cp -R .rhwp/rhwp-studio/dist/. dist/studio-v051/
           printf "%s\n" "${RHWP_PINNED_COMMIT}" > dist/RHWP_CORE_COMMIT.txt
           touch dist/.nojekyll
 
       - name: Package source
         run: |
-          zip -r Web-HWP-Editor_v0.5.0_Source.zip . \
-            -x ".git/*" ".rhwp/*" "node_modules/*" "dist/*" "Web-HWP-Editor_v0.5.0_Source.zip"
+          zip -r Web-HWP-Editor_v0.5.1_Source.zip . \
+            -x ".git/*" ".rhwp/*" "node_modules/*" "dist/*" "Web-HWP-Editor_v0.5.1_Source.zip"
 
       - name: Upload source package
         uses: actions/upload-artifact@v4
         with:
-          name: Web-HWP-Editor-v0.5.0-Source
-          path: Web-HWP-Editor_v0.5.0_Source.zip
+          name: Web-HWP-Editor-v0.5.1-Source
+          path: Web-HWP-Editor_v0.5.1_Source.zip
           if-no-files-found: error
 
       - name: Setup Pages
