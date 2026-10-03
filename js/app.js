@@ -68,8 +68,28 @@ function getFormat(fileName) {
   return null;
 }
 
+const EMBEDDED_STUDIO_BUILD = "v0.5.1-table-integrity";
+
 function getStudioUrl() {
-  return new URL(import.meta.env.BASE_URL + "studio/", window.location.origin).href;
+  return new URL(
+    import.meta.env.BASE_URL + "studio-v051/?build=" + encodeURIComponent(EMBEDDED_STUDIO_BUILD),
+    window.location.origin
+  ).href;
+}
+
+async function retireLegacyStudioServiceWorkers() {
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    const legacyScope = new URL(import.meta.env.BASE_URL + "studio/", window.location.origin).href;
+    await Promise.all(
+      registrations
+        .filter((registration) => registration.scope.startsWith(legacyScope))
+        .map((registration) => registration.unregister())
+    );
+  } catch (error) {
+    console.warn("[studio-cache] legacy service worker cleanup skipped", error);
+  }
 }
 
 function setEditorSurfaceVisible(visible) {
@@ -173,46 +193,46 @@ async function refreshCommandStates() {
   state.monitorBusy = true;
 
   try {
-    const results = await Promise.all([
+    const commandButtons = $$("[data-command]");
+    const commandIds = [...new Set(
+      commandButtons.map((button) => button.dataset.command).filter(Boolean)
+    )];
+
+    const [docState, selection, commandStates] = await Promise.all([
       state.editor.getDocumentState().catch(() => null),
       state.editor.getSelectionContext().catch(() => null),
-      state.editor.commands.context().catch(() => ({})),
-      state.editor.commands.isEnabled("edit:undo").catch(() => false),
-      state.editor.commands.isEnabled("edit:redo").catch(() => false),
+      Promise.all(
+        commandIds.map(async (commandId) => [
+          commandId,
+          await state.editor.commands.isEnabled(commandId).catch(() => false),
+        ])
+      ),
     ]);
-
-    const docState = results[0];
-    const selection = results[1];
-    const context = results[2];
-    const undoEnabled = results[3];
-    const redoEnabled = results[4];
 
     if (docState) {
       if (!state.currentFormat) state.currentFormat = docState.format || "hwp";
       updateDirtyUi(docState.dirty);
       updatePageUi(selection ? selection.page : state.currentPage, docState.pageCount || state.pageCount);
-
       let stateText = "저장됨";
       if (state.isNewDocument) stateText = "새 문서 · 아직 저장되지 않음";
       else if (docState.dirty) stateText = "저장되지 않은 변경사항 있음";
-
       els.documentMeta.textContent =
         (docState.pageCount || state.pageCount || "?") + "페이지 · " + stateText + " · 직접 편집";
     } else if (selection) {
       updatePageUi(selection.page, state.pageCount);
     }
 
-    const undo = $('[data-command="edit:undo"]');
-    const redo = $('[data-command="edit:redo"]');
-    if (undo) undo.disabled = !undoEnabled;
-    if (redo) redo.disabled = !redoEnabled;
-
-    updateTableButtonStates(context);
+    const enabledMap = new Map(commandStates);
+    for (const button of commandButtons) {
+      const commandId = button.dataset.command;
+      if (!commandId) continue;
+      button.disabled = enabledMap.get(commandId) !== true;
+      button.setAttribute("aria-disabled", button.disabled ? "true" : "false");
+    }
   } finally {
     state.monitorBusy = false;
   }
 }
-
 function startStateMonitor() {
   stopStateMonitor();
   refreshCommandStates();
@@ -253,7 +273,11 @@ async function executeStudioCommand(commandId, params, allowDialog) {
     } else if (commandId === "table:create") {
       toast("표 만들기 설정을 열었습니다.");
     } else if (commandId === "table:cell-split") {
-      toast("셀 나누기 설정을 열었습니다. 수정된 분할 코어가 적용됩니다.");
+      toast("셀 나누기 설정을 열었습니다. 구조/줄배치 회귀검사가 적용됩니다.");
+    } else if (commandId === "table:cell-height-equal") {
+      toast("표 전체 행 높이를 저장 가능한 기준 그리드로 맞췄습니다.");
+    } else if (commandId === "table:cell-width-equal") {
+      toast("표 전체 열 너비를 저장 가능한 기준 그리드로 맞췄습니다.");
     }
 
     window.setTimeout(async () => {
@@ -601,5 +625,6 @@ window.addEventListener("beforeunload", (event) => {
   }
 });
 
+retireLegacyStudioServiceWorkers();
 setEditorSurfaceVisible(false);
 setStatus("새 문서 또는 HWP/HWPX 열기 준비");
