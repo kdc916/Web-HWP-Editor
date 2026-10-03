@@ -587,3 +587,73 @@ v0.5부터 same pinned commit에서 wasm-pack 0.15.0으로 fresh WASM을 만들�
 9. 분할 후 텍스트 줄바꿈과 클립 확인
 10. HWP 저장 후 재오픈
 11. 한컴 한/글에서 저장본 재오픈
+
+
+---
+
+## v0.5.1 - Table Integrity & Regression Guard
+기준일: 2026-10-03
+
+### 재현 버그
+- 3×3 표 생성
+- 셀 높이 같게
+- 오른쪽 세로 셀 병합
+- 병합 셀 하단이 왼쪽 표 하단보다 내려가는 grid mismatch
+
+### 원인
+구버전 Studio의 local resize geometry와 HWP에 실제 저장되는 cell.width / cell.height가 섞일 수 있었다.
+merge는 저장된 row height 합으로 merged height를 만들기 때문에 화면 grid와 persisted grid가 다르면 병합 후 경계가 어긋날 수 있다.
+
+또한 self-hosted rhwp Studio가 VitePWA Service Worker를 포함한 채 같은 /studio/ 경로를 계속 사용해 이전 bundle/WASM이 남을 가능성이 있었다.
+
+### 수정
+- embedded Studio PWA 제거
+- Studio 경로를 /studio-v051/ 로 변경해 기존 Service Worker scope와 완전히 분리
+- 이전 /studio/ Service Worker unregister
+- 모든 Quick Ribbon command의 실제 isEnabled 상태를 엔진에서 읽어 UI에 반영
+- 표 전체 높이/너비 같게를 persisted whole-table grid 방식으로 교체
+- merged cell width/height = 자신이 span하는 row/column target 합으로 동기화
+- equalize를 Snapshot transaction으로 실행해 Undo/Redo 보장
+- 중첩표 등 독립 persisted grid를 안전하게 계산할 수 없는 경우 fail-closed
+
+### 신규 파일
+- scripts/patch-embedded-studio.mjs
+- scripts/verify-table-safety.mjs
+- tests/web_hwp_table_integrity_regression.rs
+
+### CI 게이트
+1. pinned rhwp source 확인
+2. embedded Studio no-PWA patch
+3. safe whole-table equalization patch
+4. patch 정적 검증
+5. custom table integrity Rust test
+6. upstream #4138 split stale line segment test
+7. upstream #4323 merge reflow test
+8. fresh WASM build
+9. TypeScript compile
+10. versioned Studio build
+11. Pages deploy
+
+### custom table test
+시나리오 A:
+- 3×2 생성
+- 3개 행 높이를 서로 다르게 변경
+- 저장형 전체 높이 균등화
+- 오른쪽 열 3개 셀 세로 병합
+- merged.height == row height sum
+- 좌측 하단 == 병합 셀 하단
+- HWP export / reopen 후 재검증
+- split 후 각 행 좌우 y/height 재검증
+
+시나리오 B:
+- 3×3 생성
+- merge
+- split
+- row insert
+- column insert
+- row delete
+- column delete
+- 모든 grid coordinate coverage == 1
+
+### 안정 기준
+v0.5.1부터 표 구조 변경 기능은 위 테스트가 하나라도 실패하면 배포하지 않는다.
