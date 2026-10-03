@@ -1,0 +1,90 @@
+name: One-time migrate Pages to main/docs
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/migrate-static-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+  pages: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Restore last verified static Pages build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: "11273819111"
+        run: |
+          set -euo pipefail
+          rm -rf docs .pages-artifact
+          mkdir -p docs .pages-artifact
+
+          curl -sSfL --retry 5 --retry-delay 2 \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" \
+            -o /tmp/web-hwp-pages.zip
+
+          unzip -q /tmp/web-hwp-pages.zip -d .pages-artifact
+          test -f .pages-artifact/artifact.tar
+          tar -xf .pages-artifact/artifact.tar -C docs
+
+          # Branch Pages should never keep a stale PWA service worker from old Studio builds.
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("docs/studio/index.html")
+          if p.exists():
+              s = p.read_text(encoding="utf-8")
+              s = s.replace(
+                  '<link rel="manifest" href="/Web-HWP-Editor/studio/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/Web-HWP-Editor/studio/registerSW.js"></script>',
+                  ''
+              )
+              p.write_text(s, encoding="utf-8")
+          PY
+          rm -f docs/studio/sw.js docs/studio/registerSW.js docs/studio/manifest.webmanifest
+          touch docs/.nojekyll
+          printf "stable-static-v0.5.0\n" > docs/DEPLOYED_VERSION.txt
+
+      - name: Commit static production site to docs
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A docs
+          if git diff --cached --quiet; then
+            echo "docs/ already matches the verified static build."
+          else
+            git commit -m "deploy: pin verified static site under docs"
+            git push origin HEAD:main
+          fi
+
+      - name: Switch Pages source to main/docs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          STATUS=$(curl -sS -o /tmp/pages-response.json -w "%{http_code}" \
+            -X PUT \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pages" \
+            -d '{"build_type":"legacy","source":{"branch":"main","path":"/docs"}}')
+          echo "Pages API status: ${STATUS}"
+          cat /tmp/pages-response.json || true
+          if [ "${STATUS}" = "204" ]; then
+            echo "### GitHub Pages migrated to main/docs" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "### Static docs committed; Pages source still needs one UI setting" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Settings → Pages → Deploy from a branch → main /docs" >> "${GITHUB_STEP_SUMMARY}"
+          fi
