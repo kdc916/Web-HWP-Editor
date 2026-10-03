@@ -27,6 +27,14 @@ fn first_table_para(doc: &HwpDocument) -> usize {
         .expect("first table para")
 }
 
+fn table_control_idx(doc: &HwpDocument, para_idx: usize) -> usize {
+    doc.document().sections[0].paragraphs[para_idx]
+        .controls
+        .iter()
+        .position(|control| matches!(control, Control::Table(_)))
+        .expect("table control index")
+}
+
 fn cell_index(doc: &HwpDocument, para_idx: usize, row: u16, col: u16) -> usize {
     table(doc, para_idx)
         .cells
@@ -170,8 +178,9 @@ fn three_rows_equalize_then_vertical_merge_preserves_persisted_grid_and_roundtri
         "roundtrip merged persisted height must still equal the sum of its row grid"
     );
 
+    let ctrl2 = table_control_idx(&reopened, para2);
     reopened
-        .split_table_cell_native(0, para2, 0, 0, 1)
+        .split_table_cell_native(0, para2, ctrl2, 0, 1)
         .expect("split merged cell");
     assert_exact_grid(table(&reopened, para2));
 
