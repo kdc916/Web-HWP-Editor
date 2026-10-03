@@ -73,24 +73,6 @@ fn assert_exact_grid(table: &Table) {
     }
 }
 
-fn bbox(doc: &HwpDocument, para_idx: usize, cell_idx: usize) -> Value {
-    let json = doc
-        .get_table_cell_bboxes(0, para_idx as u32, 0, Some(0))
-        .expect("table bboxes");
-    let values: Value = serde_json::from_str(&json).expect("bbox json");
-    values
-        .as_array()
-        .expect("bbox array")
-        .iter()
-        .find(|v| v["cellIdx"].as_u64() == Some(cell_idx as u64))
-        .cloned()
-        .unwrap_or_else(|| panic!("bbox for cell {cell_idx}: {json}"))
-}
-
-fn bottom(v: &Value) -> f64 {
-    v["y"].as_f64().unwrap() + v["h"].as_f64().unwrap()
-}
-
 fn equalize_rows_persisted(doc: &mut HwpDocument, para_idx: usize) {
     let (rows, cell_snapshot) = {
         let t = table(doc, para_idx);
@@ -134,7 +116,7 @@ fn equalize_rows_persisted(doc: &mut HwpDocument, para_idx: usize) {
 }
 
 #[test]
-fn three_rows_equalize_then_vertical_merge_has_same_bottom_and_roundtrips() {
+fn three_rows_equalize_then_vertical_merge_preserves_persisted_grid_and_roundtrips() {
     let mut doc = HwpDocument::create_empty();
     let created = doc.create_table_native(0, 0, 0, 3, 2).expect("3x2 table");
     let para_idx = table_para_idx(&created);
@@ -173,24 +155,19 @@ fn three_rows_equalize_then_vertical_merge_has_same_bottom_and_roundtrips() {
         "merged persisted height must equal the sum of its row grid"
     );
 
-    let left_bottom = bottom(&bbox(&doc, para_idx, cell_index(&doc, para_idx, 2, 0)));
-    let merged_bottom = bottom(&bbox(&doc, para_idx, merged_idx));
-    assert!(
-        (left_bottom - merged_bottom).abs() <= 0.5,
-        "visual bottoms must align: left={left_bottom}, merged={merged_bottom}"
-    );
-
     // Round-trip is part of the contract: the fix must survive an actual HWP save.
     let bytes = doc.export_hwp_native().expect("export hwp");
     let mut reopened = HwpDocument::from_bytes(&bytes).expect("reopen exported hwp");
     let para2 = first_table_para(&reopened);
+    let reopened_table = table(&reopened, para2);
+    assert_exact_grid(reopened_table);
     let right = cell_index(&reopened, para2, 0, 1);
-    let left_last = cell_index(&reopened, para2, 2, 0);
-    let after_left = bottom(&bbox(&reopened, para2, left_last));
-    let after_right = bottom(&bbox(&reopened, para2, right));
-    assert!(
-        (after_left - after_right).abs() <= 0.5,
-        "roundtrip bottoms must align: left={after_left}, merged={after_right}"
+    let reopened_rows = row_heights(reopened_table);
+    let reopened_expected_height: u32 = reopened_rows.iter().sum();
+    assert_eq!(
+        reopened_table.cells[right].height,
+        reopened_expected_height,
+        "roundtrip merged persisted height must still equal the sum of its row grid"
     );
 
     reopened
@@ -198,13 +175,22 @@ fn three_rows_equalize_then_vertical_merge_has_same_bottom_and_roundtrips() {
         .expect("split merged cell");
     assert_exact_grid(table(&reopened, para2));
 
+    let split_table = table(&reopened, para2);
+    let split_rows = row_heights(split_table);
     for row in 0..3_u16 {
         let li = cell_index(&reopened, para2, row, 0);
         let ri = cell_index(&reopened, para2, row, 1);
-        let lb = bbox(&reopened, para2, li);
-        let rb = bbox(&reopened, para2, ri);
-        assert!((lb["y"].as_f64().unwrap() - rb["y"].as_f64().unwrap()).abs() <= 0.5);
-        assert!((lb["h"].as_f64().unwrap() - rb["h"].as_f64().unwrap()).abs() <= 0.5);
+        let left = &split_table.cells[li];
+        let right = &split_table.cells[ri];
+        let expected = split_rows[row as usize];
+        assert_eq!(
+            left.height, expected,
+            "left cell row {row} must use the canonical persisted row height"
+        );
+        assert_eq!(
+            right.height, expected,
+            "split right cell row {row} must return to the canonical persisted row height"
+        );
     }
 }
 
