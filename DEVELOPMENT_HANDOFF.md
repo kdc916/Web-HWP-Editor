@@ -406,3 +406,79 @@ Actions에서 upstream을 `v0.8.6` tag로 고정한다.
 4. self-hosted Studio 메뉴/툴바/문서 페이지 표시
 5. 셀 클릭 및 직접 입력
 6. 저장
+
+
+---
+
+## v0.4.2 - Quick Ribbon & Editor State
+기준일: 2026-10-03
+
+### 목표
+v0.4.0/0.4.1에서 직접 편집 코어와 표시 문제를 해결했으므로,
+다음 단계에서는 자주 쓰는 기능을 Studio 내부 메뉴까지 찾아가지 않고 Web HWP Editor에서 바로 실행할 수 있게 한다.
+
+### Quick Ribbon 명령 브리지
+`@rhwp/editor 0.8.6`의 `editor.commands` API를 사용한다.
+
+주요 command id:
+- `edit:undo`
+- `edit:redo`
+- `format:bold`
+- `format:italic`
+- `format:underline`
+- `format:font-size-increase`
+- `format:font-size-decrease`
+- `format:char-shape`
+- `format:align-left`
+- `format:align-center`
+- `format:align-right`
+- `format:align-justify`
+- `format:line-spacing`
+- `format:para-shape`
+- `table:insert-row-col`
+- `table:delete-row-col`
+- `table:cell-merge`
+- `table:cell-split`
+- `table:cell-width-equal`
+- `table:cell-height-equal`
+- `table:cell-props`
+- `view:zoom-fit-width`
+- `view:zoom-fit-page`
+
+대화상자를 여는 명령은 `commands.execute(id, params, { allowDialog: true })`를 사용한다.
+
+### 상태 모니터
+700ms 간격으로 아래를 조회한다.
+- `getDocumentState()`: dirty, pageCount, changeSeq
+- `getSelectionContext()`: 현재 page
+- `commands.context()`: inTable, inCellSelectionMode 등
+- `commands.isEnabled('edit:undo'/'edit:redo')`
+
+UI 반영:
+- 저장됨 / 저장 안 됨 badge
+- 현재 페이지 / 전체 페이지
+- 표 관련 Quick Ribbon 활성화
+- 셀 합치기는 cell selection mode에서만 활성
+- Undo/Redo 실제 가능 여부 반영
+
+### Chrome toggle
+`editor.chrome.get()/set()`로 Studio 내부 메뉴/toolbar를 숨기거나 다시 표시할 수 있다.
+Quick Ribbon은 유지되므로 집중 모드처럼 사용할 수 있다.
+
+### 저장 안전성
+- `notifySaved()` 성공 후 dirty 상태 해제
+- dirty 상태에서 beforeunload 경고
+- Studio 자체 autosave/recovery 경로는 그대로 유지
+
+### v0.4.2 회귀 체크
+1. HWP/HWPX 로드
+2. Quick Ribbon 표시
+3. 본문 선택 후 Bold/Italic/Underline
+4. 글자 크기 +/-
+5. 정렬/줄간격
+6. 표 셀 진입 시 표 버튼 활성
+7. 셀 범위 선택 시 셀 합치기 활성
+8. 표 추가/삭제/분할 대화상자
+9. dirty badge 변화
+10. 저장 후 saved badge 복귀
+11. 기본 도구 숨기기/보이기

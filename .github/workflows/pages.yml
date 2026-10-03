@@ -68,13 +68,14 @@ jobs:
 
       - name: Package source
         run: |
-          zip -r Web-HWP-Editor_v0.4.1_Source.zip .             -x ".git/*" ".rhwp/*" "node_modules/*" "dist/*" "Web-HWP-Editor_v0.4.1_Source.zip"
+          zip -r Web-HWP-Editor_v0.4.2_Source.zip . \
+            -x ".git/*" ".rhwp/*" ".rhwp-core/*" "node_modules/*" "dist/*" "Web-HWP-Editor_v0.4.2_Source.zip"
 
       - name: Upload source package
         uses: actions/upload-artifact@v4
         with:
-          name: Web-HWP-Editor-v0.4.1-Source
-          path: Web-HWP-Editor_v0.4.1_Source.zip
+          name: Web-HWP-Editor-v0.4.2-Source
+          path: Web-HWP-Editor_v0.4.2_Source.zip
           if-no-files-found: error
 
       - name: Setup Pages

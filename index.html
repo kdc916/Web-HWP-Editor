@@ -34,8 +34,76 @@
         <span id="documentMeta">문서 위에서 직접 클릭하고 입력할 수 있습니다.</span>
       </div>
       <div class="info-badges">
-        <span id="formatInfo" class="format-badge">v0.4.1 · Direct Edit</span>
+        <span id="dirtyBadge" class="state-badge" hidden>저장됨</span>
+        <span id="formatInfo" class="format-badge">v0.4.2 · Quick Ribbon</span>
         <span class="privacy-badge">Self-hosted · 문서 업로드 없음</span>
+      </div>
+    </section>
+
+    <section id="quickRibbon" class="quick-ribbon" hidden aria-label="빠른 편집 도구">
+      <div class="ribbon-scroll">
+        <div class="ribbon-group">
+          <span class="ribbon-label">편집</span>
+          <button class="ribbon-btn icon-only" type="button" data-command="edit:undo" title="되돌리기 (Ctrl+Z)">↶</button>
+          <button class="ribbon-btn icon-only" type="button" data-command="edit:redo" title="다시 실행 (Ctrl+Y)">↷</button>
+        </div>
+
+        <div class="ribbon-divider"></div>
+
+        <div class="ribbon-group">
+          <span class="ribbon-label">글자</span>
+          <button class="ribbon-btn strong" type="button" data-command="format:bold" title="굵게">B</button>
+          <button class="ribbon-btn italic" type="button" data-command="format:italic" title="기울임">I</button>
+          <button class="ribbon-btn underline" type="button" data-command="format:underline" title="밑줄">U</button>
+          <button class="ribbon-btn" type="button" data-command="format:font-size-decrease" title="글자 크기 작게">A−</button>
+          <button class="ribbon-btn" type="button" data-command="format:font-size-increase" title="글자 크기 크게">A＋</button>
+          <button class="ribbon-btn text-btn" type="button" data-command="format:char-shape" data-dialog="true">글자 모양</button>
+        </div>
+
+        <div class="ribbon-divider"></div>
+
+        <div class="ribbon-group">
+          <span class="ribbon-label">문단</span>
+          <button class="ribbon-btn icon-only" type="button" data-command="format:align-left" title="왼쪽 정렬">≡</button>
+          <button class="ribbon-btn icon-only center-lines" type="button" data-command="format:align-center" title="가운데 정렬">≡</button>
+          <button class="ribbon-btn icon-only right-lines" type="button" data-command="format:align-right" title="오른쪽 정렬">≡</button>
+          <button class="ribbon-btn icon-only" type="button" data-command="format:align-justify" title="양쪽 정렬">☰</button>
+          <label class="ribbon-select-wrap" title="줄 간격">
+            <span>줄간격</span>
+            <select id="lineSpacingSelect" class="ribbon-select">
+              <option value="">선택</option>
+              <option value="100">100%</option>
+              <option value="120">120%</option>
+              <option value="140">140%</option>
+              <option value="160">160%</option>
+              <option value="180">180%</option>
+              <option value="200">200%</option>
+            </select>
+          </label>
+          <button class="ribbon-btn text-btn" type="button" data-command="format:para-shape" data-dialog="true">문단 모양</button>
+        </div>
+
+        <div class="ribbon-divider"></div>
+
+        <div class="ribbon-group table-ribbon-group">
+          <span class="ribbon-label">표</span>
+          <button class="ribbon-btn text-btn table-command" type="button" data-command="table:insert-row-col" data-dialog="true">줄/칸 추가</button>
+          <button class="ribbon-btn text-btn table-command" type="button" data-command="table:delete-row-col" data-dialog="true">줄/칸 삭제</button>
+          <button class="ribbon-btn text-btn table-command merge-command" type="button" data-command="table:cell-merge" title="셀 범위를 선택한 뒤 사용">셀 합치기</button>
+          <button class="ribbon-btn text-btn table-command" type="button" data-command="table:cell-split" data-dialog="true">셀 나누기</button>
+          <button class="ribbon-btn text-btn table-command" type="button" data-command="table:cell-width-equal">너비 같게</button>
+          <button class="ribbon-btn text-btn table-command" type="button" data-command="table:cell-height-equal">높이 같게</button>
+          <button class="ribbon-btn text-btn table-command" type="button" data-command="table:cell-props" data-dialog="true">표/셀 속성</button>
+        </div>
+
+        <div class="ribbon-divider"></div>
+
+        <div class="ribbon-group">
+          <span class="ribbon-label">보기</span>
+          <button class="ribbon-btn text-btn" type="button" data-command="view:zoom-fit-width">폭 맞춤</button>
+          <button class="ribbon-btn text-btn" type="button" data-command="view:zoom-fit-page">쪽 맞춤</button>
+          <button id="studioChromeButton" class="ribbon-btn text-btn" type="button" title="Studio 기본 메뉴와 도구상자를 표시/숨김">기본 도구 숨기기</button>
+        </div>
       </div>
     </section>
 
@@ -67,8 +135,12 @@
   </main>
 
   <footer class="status-bar">
-    <span id="statusText">편집기 준비 대기</span>
-    <span>Web HWP Editor v0.4.1</span>
+    <div class="status-left">
+      <span id="statusText">편집기 준비 대기</span>
+      <span id="pageStatus" class="status-chip" hidden></span>
+      <span id="saveStatus" class="status-chip" hidden></span>
+    </div>
+    <span>Web HWP Editor v0.4.2</span>
   </footer>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
