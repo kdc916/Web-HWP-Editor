@@ -1,15 +1,21 @@
 // Values written to HWP are integer HWPUNIT (7200 per inch).
 const PIXEL_TO_HWP = 75;
 export function distribute(total, count) {
+  if (!Number.isSafeInteger(total) || total < 0 || !Number.isSafeInteger(count) || count < 1) throw new Error('표 크기가 올바르지 않습니다.');
   const base = Math.floor(total / count), remainder = total - base * count;
   return Array.from({ length: count }, (_, i) => base + (i < remainder ? 1 : 0));
 }
 export function gridUnits(cells, count, axis, boxes = []) {
+  if (!['height', 'width'].includes(axis) || !Number.isSafeInteger(count) || count < 1 || count > 65535) throw new Error('표 크기가 올바르지 않습니다.');
   const startKey = axis === 'height' ? 'row' : 'col';
   const spanKey = axis === 'height' ? 'rowSpan' : 'colSpan';
   const units = Array(count).fill(0);
+  for (const cell of cells) {
+    if (!Number.isSafeInteger(cell[startKey]) || !Number.isSafeInteger(cell[spanKey]) || cell[startKey] < 0 || cell[spanKey] < 1 || cell[startKey] + cell[spanKey] > count || !Number.isSafeInteger(cell[axis]) || cell[axis] < 0) throw new Error('표의 셀 범위 또는 크기가 올바르지 않습니다.');
+  }
   const rendered = new Map();
   for (const box of boxes) {
+    if (!Number.isInteger(box.cellIdx) || box.cellIdx < 0 || box.cellIdx >= cells.length || !Number.isFinite(box.h) || box.h < 0) throw new Error('표의 표시 크기가 올바르지 않습니다.');
     rendered.set(box.cellIdx, (rendered.get(box.cellIdx) || 0) + box.h * PIXEL_TO_HWP);
   }
   const size = (cell, index) => Math.ceil(Math.max(cell[axis], axis === 'height' ? rendered.get(index) || 0 : 0));
@@ -25,6 +31,10 @@ export function gridUnits(cells, count, axis, boxes = []) {
     if (missing.length) {
       const parts = distribute(Math.max(missing.length, size(cell, index) - known), missing.length);
       missing.forEach((unit, i) => { units[unit] = parts[i]; });
+    }
+    if (axis === 'height') {
+      const deficit = size(cell, index) - units.slice(start, end).reduce((a, b) => a + b, 0);
+      if (deficit > 0) distribute(deficit, end - start).forEach((extra, i) => { units[start + i] += extra; });
     }
   }
   if (units.some(value => !Number.isFinite(value) || value <= 0)) throw new Error('표 크기를 계산하지 못했습니다.');
@@ -44,6 +54,7 @@ export function equalizeSelectedGrid(services, axis) {
   const count = axis === 'height' ? dimensions.rowCount : dimensions.colCount;
   const start = axis === 'height' ? range.startRow : range.startCol;
   const end = axis === 'height' ? range.endRow : range.endCol;
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end >= count) throw new Error('선택한 셀 범위가 올바르지 않습니다.');
   if (end <= start) throw new Error(axis === 'height' ? '두 줄 이상을 선택하세요.' : '두 칸 이상을 선택하세요.');
   const units = gridUnits(cells, count, axis, axis === 'height' ? wasm.getTableCellBboxes(sec, ppi, ci) : []);
   const selected = units.slice(start, end + 1);
@@ -53,6 +64,7 @@ export function equalizeSelectedGrid(services, axis) {
   cells.forEach((cell, cellIdx) => {
     const first = axis === 'height' ? cell.row : cell.col;
     const span = axis === 'height' ? cell.rowSpan : cell.colSpan;
+    if (first > end || first + span <= start) return;
     const desired = units.slice(first, first + span).reduce((a, b) => a + b, 0);
     const delta = desired - cell[axis];
     if (delta) updates.push({ cellIdx, [axis + 'Delta']: delta });

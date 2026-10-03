@@ -1,7 +1,8 @@
 import { createEditor } from '../vendor/editor/index.js';
+import { APP_VERSION, documentFormat, downloadName, fetchDocumentBytes, assertLoadedDocument } from './document-utils.js';
 const $$ = selector => [...document.querySelectorAll(selector)];
 const els = Object.fromEntries($$('[id]').map(el => [el.id, el]));
-const state = { editor: null, busy: false, saving: false, hasDocument: false, fileName: '', format: 'hwp', isNew: false, dirty: false, monitoring: false, timer: null };
+const state = { editor: null, busy: false, saving: false, hasDocument: false, fileName: '', format: 'hwp', isNew: false, dirty: false, monitoring: false, timer: null, generation: 0 };
 const assetUrl = path => new URL(path, document.baseURI).href;
 function toast(message) {
   els.toast.textContent = message; els.toast.classList.add('show');
@@ -12,6 +13,8 @@ function surface(visible) {
   els.emptyState.hidden = visible; els.editorViewport.hidden = !visible; els.quickRibbon.hidden = !state.hasDocument;
 }
 function controls() {
+  els.studioHost.inert = state.busy || state.saving;
+  els.studioChromeButton.disabled = !state.editor || state.busy || state.saving;
   for (const id of ['newButton', 'emptyNewButton', 'ribbonNewButton', 'openButton', 'emptyOpenButton', 'ribbonOpenButton']) els[id].disabled = state.busy || state.saving;
   els.saveButton.disabled = els.printButton.disabled = !state.hasDocument || state.busy || state.saving;
   els.lineSpacingSelect.disabled = !state.hasDocument || state.busy || state.saving;
@@ -27,9 +30,10 @@ function dirtyUi(dirty) {
 async function refresh() {
   if (!state.editor || !state.hasDocument || state.busy || state.saving || state.monitoring) return;
   state.monitoring = true;
+  const generation = state.generation;
   try {
     const [doc, selection, commands] = await Promise.all([state.editor.getDocumentState(), state.editor.getSelectionContext(), state.editor.commands.list()]);
-    if (state.busy || state.saving) return;
+    if (state.busy || state.saving || generation !== state.generation) return;
     dirtyUi(doc.dirty); els.pageStatus.hidden = false;
     els.pageStatus.textContent = `${selection.page || 1} / ${doc.pageCount}쪽`;
     els.documentMeta.textContent = `${doc.pageCount}페이지 · ${state.dirty ? '저장되지 않은 변경사항 있음' : '저장됨'}`;
@@ -47,8 +51,10 @@ async function ensureEditor() {
   if (state.editor) return state.editor;
   surface(true); els.studioLoading.hidden = false; els.studioHost.hidden = false;
   status('편집기를 준비하는 중…');
+  const studioUrl = assetUrl(`./studio/?build=${APP_VERSION}&renderer=canvas2d`);
+  await fetchDocumentBytes(studioUrl, { label: '편집기' });
   const editor = await createEditor(els.studioHost, {
-    studioUrl: assetUrl('./studio/?build=0.5.4'), width: '100%', height: '100%',
+    studioUrl, width: '100%', height: '100%',
     renderer: 'canvas2d', handshakeTimeoutMs: 20000, requestTimeoutMs: 30000,
   });
   state.editor = editor;
@@ -83,32 +89,30 @@ async function confirmReplace() {
 async function loadDocument(file, isNew = false) {
   if (state.busy || state.saving) return;
   const name = isNew ? '새 문서.hwp' : file?.name;
-  const format = name?.toLowerCase().match(/\.(hwp|hwpx)$/)?.[1];
-  if (!format) { toast('HWP 또는 HWPX 파일을 선택해주세요.'); return; }
-  state.busy = true; controls();
+  const format = documentFormat(name);
+  if (!format) { toast('HWP 또는 HWPX 파일을 선택해주세요.'); els.fileInput.value = ''; return; }
+  state.busy = true; state.generation++; controls();
+  let loaded = false;
   try {
     if (!(await confirmReplace())) return;
     const editor = await ensureEditor();
     status(isNew ? '새 문서를 만드는 중…' : '문서를 여는 중…');
-    let buffer;
-    if (isNew) {
-      const response = await fetch(assetUrl('./blank2010.hwp'));
-      if (!response.ok) throw new Error(`빈 문서 파일을 불러오지 못했습니다 (${response.status}).`);
-      buffer = await response.arrayBuffer();
-    } else buffer = await file.arrayBuffer();
+    const buffer = isNew ? await fetchDocumentBytes(assetUrl('./blank2010.hwp')) : await file.arrayBuffer();
     const result = await editor.loadFile(buffer, name, { skipUnsavedGuard: true, suppressDialogs: true });
-    if (!result || result.pageCount < 1) throw new Error('문서가 정상적으로 열리지 않았습니다.');
+    assertLoadedDocument(result);
     Object.assign(state, { hasDocument: true, fileName: name, format, isNew });
     els.documentName.textContent = name; els.formatInfo.textContent = format.toUpperCase();
     els.saveButton.textContent = format.toUpperCase() + ' 저장';
     surface(true); dirtyUi(isNew); status(isNew ? '새 문서 편집 중' : '문서 편집 중');
-    toast(isNew ? '새 문서를 만들었습니다. 바로 입력하세요.' : '문서를 열었습니다.'); focusEditor();
+    els.lineSpacingSelect.value = '';
+    toast(isNew ? '새 문서를 만들었습니다. 바로 입력하세요.' : '문서를 열었습니다.'); loaded = true;
   } catch (error) {
     console.error('문서 열기 실패', error); status('문서 열기 실패'); toast(error.message || '문서를 열지 못했습니다.');
     if (!state.hasDocument) surface(false);
   } finally {
     state.busy = false; els.studioLoading.hidden = true; els.fileInput.value = ''; controls();
     if (state.hasDocument) monitor();
+    if (loaded) focusEditor();
   }
 }
 function createNewDocument() { return loadDocument(null, true); }
@@ -121,18 +125,17 @@ function download(bytes, name, mime) {
 }
 async function saveDocument() {
   if (!state.hasDocument || state.busy || state.saving) return;
-  state.saving = true; controls(); els.studioHost.inert = true;
+  state.saving = true; state.generation++; controls();
   try {
     status('문서 저장 중…');
-    const base = state.fileName.replace(/\.(hwp|hwpx)$/i, '').replace(/_edited$/, '');
-    const name = `${base}${state.isNew ? '' : '_edited'}.${state.format}`;
+    const name = downloadName(state.fileName, state.format, state.isNew);
     const bytes = state.format === 'hwpx' ? await state.editor.exportHwpx() : await state.editor.exportHwp();
     download(bytes, name, state.format === 'hwpx' ? 'application/vnd.hancom.hwpx' : 'application/x-hwp');
     await state.editor.notifySaved(name);
     state.fileName = name; state.isNew = false; els.documentName.textContent = name;
     dirtyUi(false); status('저장 파일 다운로드 완료'); toast(`${name} 다운로드를 시작했습니다.`);
   } catch (error) { console.error('저장 실패', error); status('저장 상태를 확인해주세요'); toast(error.message || '저장하지 못했습니다.'); }
-  finally { state.saving = false; els.studioHost.inert = false; controls(); refresh(); }
+  finally { state.saving = false; controls(); refresh(); }
 }
 async function execute(id, params, allowDialog = false) {
   if (!state.hasDocument || state.busy || state.saving) return;
@@ -160,7 +163,11 @@ $$('[data-command]').forEach(button => {
   button.addEventListener('mousedown', event => event.preventDefault());
   button.addEventListener('click', () => execute(button.dataset.command, undefined, button.dataset.dialog === 'true'));
 });
-els.lineSpacingSelect.addEventListener('change', () => { const value = Number(els.lineSpacingSelect.value); if (value) execute('format:line-spacing', { value }); });
+els.lineSpacingSelect.addEventListener('change', () => {
+  const value = Number(els.lineSpacingSelect.value);
+  if (value) execute('format:line-spacing', { value });
+  els.lineSpacingSelect.value = '';
+});
 for (const type of ['dragenter', 'dragover', 'dragleave', 'drop']) els.dropZone.addEventListener(type, event => {
   event.preventDefault(); els.dropZone.classList.toggle('dragover', type === 'dragenter' || type === 'dragover');
   if (type === 'drop' && event.dataTransfer?.files[0]) loadDocument(event.dataTransfer.files[0]);

@@ -1,17 +1,22 @@
 import { readFileSync, writeFileSync, cpSync, mkdirSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve, sep } from 'node:path';
+import { APP_VERSION } from '../js/document-utils.js';
+const { version } = JSON.parse(readFileSync('package.json','utf8'));
+if (version !== APP_VERSION) throw new Error('App/package version mismatch');
 const out = process.argv[2] || 'docs';
+if (!resolve(out).startsWith(resolve('.') + sep)) throw new Error('Build output must be a child directory of the project');
 mkdirSync(out,{recursive:true});
 cpSync('public',out,{recursive:true});
 cpSync('vendor/studio',join(out,'studio'),{recursive:true});
 mkdirSync(join(out,'vendor'),{recursive:true});
 cpSync('vendor/editor',join(out,'vendor/editor'),{recursive:true});
 mkdirSync(join(out,'js'),{recursive:true});
-for(const file of ['app.js','table-geometry.js']) cpSync(join('js',file),join(out,'js',file));
-for(const file of ['index.html','styles.css']) cpSync(file,join(out,file));
+for(const file of ['app.js','table-geometry.js','document-utils.js']) cpSync(join('js',file),join(out,'js',file));
+writeFileSync(join(out,'index.html'),readFileSync('app.html','utf8').replaceAll(/v0\.5\.\d+/g,`v${version}`));
+cpSync('styles.css',join(out,'styles.css'));
 cpSync('vendor/RHWP_CORE_COMMIT.txt',join(out,'RHWP_CORE_COMMIT.txt'));
 writeFileSync(join(out,'.nojekyll'),'');
-writeFileSync(join(out,'DEPLOYED_VERSION.txt'),'v0.5.4\n');
+writeFileSync(join(out,'DEPLOYED_VERSION.txt'),`v${version}\n`);
 function replaceOnce(text,old,replacement){
   if(text.split(old).length!==2) throw new Error('Pinned upstream patch mismatch: '+old.slice(0,90));
   return text.replace(old,replacement);
@@ -43,4 +48,4 @@ function relativeAssets(directory){
   }
 }
 relativeAssets(join(out,'studio'));
-console.log('Built v0.5.4 to '+out);
+console.log(`Built v${version} to ${out}`);

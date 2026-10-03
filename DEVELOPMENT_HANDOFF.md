@@ -712,3 +712,41 @@ v0.5.2 새 문서는 외부 shell에서 `file:new-doc` automation command를 호
 3. blank2010.hwp 즉시 로드
 4. 빈 1페이지가 화면에 표시
 5. 바로 입력 가능
+
+
+---
+
+## v0.5.5 - Lifecycle & Partial Table Safety
+기준일: 2026-10-04
+
+### 핵심 수정
+- state.generation으로 문서 교체 전 시작된 오래된 상태 조회 결과 폐기
+- load/save 중 studioHost inert 적용 및 중복 명령 차단
+- 저장 실패 후 잠금/버튼 상태 정상 복구
+- 로드 성공 후에만 입력 focus 복구
+- 줄간격 select를 action selector로 취급해 실행 후 값 초기화
+- document-utils.js로 확장자, 저장명, 다운로드 timeout, load 결과 검증 분리
+- Studio HTML을 iframe 생성 전에 HTTP 검증해 404 즉시 감지
+- response body 전체 읽기 완료까지 AbortController timeout 유지
+- pageCount가 1 이상의 safe integer인지 검증
+
+### 표 안정화
+- grid geometry 입력값 검증 강화
+- 병합 셀의 실제 표시 높이가 독립 행 최소 높이 합보다 크면 부족분을 행에 분산
+- 부분 행/열 균등화 시 선택 영역과 교차하는 셀만 resize
+- 선택 밖 행/열의 persisted size 보존
+- 잘못된 span / NaN / 범위 밖 selection은 mutation 전에 차단
+
+### 배포/구조
+- 버전 0.5.5
+- 최상위 index.html은 docs/로 이동
+- app.html을 실제 편집기 UI 소스로 분리
+- docs/index.html은 app.html 기반 배포본
+- docs/js/document-utils.js 추가
+- 구버전 docs/assets, docs/studio-v052 배포 잔재 제거
+
+### 검증
+- 제공된 v0.5.5 검증 기록: Chrome 33 + lifecycle 6, Edge 33 + lifecycle 6
+- 로컬 npm test 11/11 통과
+- npm run build 성공
+- 제공 패키지에서 재빌드한 docs 86개 파일이 원본 docs와 byte-for-byte 일치

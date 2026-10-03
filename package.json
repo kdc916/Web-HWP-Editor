@@ -1,13 +1,13 @@
 {
-  "name":"web-hwp-editor",
-  "version":"0.5.4",
-  "private":true,
-  "type":"module",
-  "scripts":{
-    "start":"node scripts/serve.mjs",
-    "dev":"node scripts/build.mjs && node scripts/serve.mjs",
-    "build":"node scripts/build.mjs",
-    "preview":"node scripts/serve.mjs",
-    "test":"node --test tests/table-geometry.test.mjs"
+  "name": "web-hwp-editor",
+  "version": "0.5.5",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "dev": "node scripts/build.mjs && node scripts/serve.mjs",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/serve.mjs",
+    "test": "node --test tests/document-utils.test.mjs tests/table-geometry.test.mjs"
   }
 }
