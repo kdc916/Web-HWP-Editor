@@ -68,7 +68,7 @@ function getFormat(fileName) {
   return null;
 }
 
-const EMBEDDED_STUDIO_BUILD = "v0.5.2-table-safe";
+const EMBEDDED_STUDIO_BUILD = "v0.5.4-newdoc-safe";
 
 function getStudioUrl() {
   return new URL(
@@ -116,7 +116,9 @@ async function ensureEditor() {
   els.editorViewport.style.display = "block";
   els.quickRibbon.hidden = true;
   els.studioLoading.hidden = false;
-  els.studioHost.hidden = true;
+  // Studio must remain measurable while the iframe/canvas initializes.
+  // The loading layer covers it visually, but display:none can produce a zero-size editor.
+  els.studioHost.hidden = false;
   setStatus("직접 편집 엔진 초기화 중…");
 
   const editor = await createEditor(els.studioHost, {
@@ -344,7 +346,9 @@ async function createNewDocument() {
 
     const buffer = await response.arrayBuffer();
     const result = await editor.loadFile(buffer, "새 문서.hwp", {
-      skipUnsavedGuard: false,
+      // There is nothing to protect before the first document is loaded.
+      // Skipping the guard avoids an invisible first-load confirmation inside Studio.
+      skipUnsavedGuard: !state.hasDocument,
       suppressDialogs: true,
     });
 
