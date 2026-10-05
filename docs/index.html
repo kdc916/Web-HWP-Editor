@@ -17,18 +17,6 @@
         <p>Direct HWP / HWPX editing</p>
       </div>
     </div>
-    <div class="header-actions">
-      <input id="fileInput" type="file"
-        accept=".hwp,.hwpx,application/x-hwp,application/vnd.hancom.hwp,application/vnd.hancom.hwpx,application/zip" hidden />
-      <button id="ribbonToggleButton" class="button" type="button" aria-controls="quickRibbon" aria-expanded="false" disabled>빠른 도구 보기</button>
-      <button id="newButton" class="button" type="button">새 문서</button>
-      <button id="openButton" class="button button-primary" type="button">HWP / HWPX 열기</button>
-      <button id="saveButton" class="button" type="button" disabled>저장</button>
-      <button id="printButton" class="button" type="button" disabled>PDF / 인쇄</button>
-    </div>
-  </header>
-
-  <main class="app-shell">
     <section class="info-bar" aria-live="polite">
       <div class="document-summary">
         <strong id="documentName">새 문서를 만들거나 파일을 열어주세요</strong>
@@ -41,6 +29,18 @@
         <span class="privacy-badge">문서 업로드 없음</span>
       </div>
     </section>
+    <div class="header-actions">
+      <input id="fileInput" type="file"
+        accept=".hwp,.hwpx,application/x-hwp,application/vnd.hancom.hwp,application/vnd.hancom.hwpx,application/zip" hidden />
+      <button id="ribbonToggleButton" class="button" type="button" aria-controls="quickRibbon" aria-expanded="false" disabled>빠른 도구 보기</button>
+      <button id="newButton" class="button" type="button">새 문서</button>
+      <button id="openButton" class="button button-primary" type="button">HWP / HWPX 열기</button>
+      <button id="saveButton" class="button" type="button" disabled>저장</button>
+      <button id="printButton" class="button" type="button" disabled>PDF / 인쇄</button>
+    </div>
+  </header>
+
+  <main class="app-shell">
 
     <section id="quickRibbon" class="quick-ribbon" hidden aria-label="빠른 편집 도구">
       <div class="ribbon-scroll">

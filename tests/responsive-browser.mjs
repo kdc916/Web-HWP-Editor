@@ -20,7 +20,12 @@ async function measure() {
   return page.evaluate(() => {
     const box = document.querySelector('#dropZone').getBoundingClientRect();
     const footer = document.querySelector('.status-bar').getBoundingClientRect();
+    const header = document.querySelector('.app-header').getBoundingClientRect();
+    const info = document.querySelector('.info-bar').getBoundingClientRect();
+    const actions = document.querySelector('.header-actions').getBoundingClientRect();
     return { width: innerWidth, height: innerHeight, editorHeight: box.height, bottom: box.bottom,
+      headerHeight: header.height, infoInsideHeader: info.top >= header.top && info.bottom <= header.bottom,
+      headerOverlap: innerWidth > 700 && info.right > actions.left,
       footerTop: footer.top, overflow: document.documentElement.scrollWidth > innerWidth };
   });
 }
@@ -48,17 +53,22 @@ try {
   await page.locator('#ribbonToggleButton').click();
   await page.reload(); await ready();
   assert.equal(await page.locator('#quickRibbon').isVisible(), false);
+  await page.locator('#documentName').evaluate(el => { el.textContent = '긴 문서 이름 레이아웃 확인 '.repeat(20) + '.hwp'; });
   for (const [width,height] of [[1920,1080],[1536,864],[1366,768],[1024,600],[768,1024],[390,844],[844,390]]) {
     await page.setViewportSize({width,height});
     for (const expanded of [false,true]) {
       if (await page.locator('#quickRibbon').isVisible() !== expanded) await page.locator('#ribbonToggleButton').click();
       const m = await measure(); measurements.push({...m,expanded});
       assert.equal(m.overflow,false,JSON.stringify(m));
+      assert.equal(m.infoInsideHeader,true,JSON.stringify(m));
+      assert.equal(m.headerOverlap,false,JSON.stringify(m));
+      if (width > 700) assert.ok(m.headerHeight <= 48,JSON.stringify(m));
       assert.ok(m.bottom <= m.footerTop + 1,JSON.stringify(m));
       assert.ok(m.editorHeight >= height * .6,JSON.stringify(m));
     }
   }
   await page.setViewportSize({width:1920,height:1080});
+  await page.locator('#documentName').evaluate(el => { el.textContent = '새 문서.hwp'; });
   await page.locator('#ribbonToggleButton').click();
   mkdirSync('test-results',{recursive:true});
   await page.screenshot({path:'test-results/responsive-'+channel+'.png'});
