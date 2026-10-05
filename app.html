@@ -20,6 +20,7 @@
     <div class="header-actions">
       <input id="fileInput" type="file"
         accept=".hwp,.hwpx,application/x-hwp,application/vnd.hancom.hwp,application/vnd.hancom.hwpx,application/zip" hidden />
+      <button id="ribbonToggleButton" class="button" type="button" aria-controls="quickRibbon" aria-expanded="false" disabled>빠른 도구 보기</button>
       <button id="newButton" class="button" type="button">새 문서</button>
       <button id="openButton" class="button button-primary" type="button">HWP / HWPX 열기</button>
       <button id="saveButton" class="button" type="button" disabled>저장</button>
@@ -43,13 +44,6 @@
 
     <section id="quickRibbon" class="quick-ribbon" hidden aria-label="빠른 편집 도구">
       <div class="ribbon-scroll">
-        <div class="ribbon-group">
-          <span class="ribbon-label">파일</span>
-          <button class="ribbon-btn text-btn" id="ribbonNewButton" type="button">새 문서</button>
-          <button class="ribbon-btn text-btn" id="ribbonOpenButton" type="button">열기</button>
-        </div>
-
-        <div class="ribbon-divider"></div>
         <div class="ribbon-group">
           <span class="ribbon-label">편집</span>
           <button class="ribbon-btn icon-only" type="button" data-command="edit:undo" title="되돌리기">↶</button>
@@ -115,7 +109,7 @@
           <span class="ribbon-label">보기</span>
           <button class="ribbon-btn text-btn" type="button" data-command="view:zoom-fit-width">폭 맞춤</button>
           <button class="ribbon-btn text-btn" type="button" data-command="view:zoom-fit-page">쪽 맞춤</button>
-          <button id="studioChromeButton" class="ribbon-btn text-btn" type="button">기본 도구 숨기기</button>
+          <button id="studioChromeButton" class="ribbon-btn text-btn" type="button">편집기 메뉴 숨기기</button>
         </div>
       </div>
       <p class="ribbon-help">표 전체 선택으로 크기를 맞추거나, 셀 안에서 F5를 두 번 누른 뒤 방향키로 합칠 범위를 선택하세요.</p>

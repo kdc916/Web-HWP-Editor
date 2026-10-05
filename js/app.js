@@ -9,13 +9,24 @@ function toast(message) {
   clearTimeout(toast.timer); toast.timer = setTimeout(() => els.toast.classList.remove('show'), 5000);
 }
 function status(message) { els.statusText.textContent = message; }
+// Storage can be unavailable in private/restricted browser contexts.
+const ribbonPreferenceKey = 'webhwp.quickRibbon';
+let ribbonExpanded = false;
+try { ribbonExpanded = localStorage.getItem(ribbonPreferenceKey) === 'true'; } catch {}
+function renderRibbon() {
+  const expanded = state.hasDocument && ribbonExpanded;
+  els.quickRibbon.hidden = !expanded;
+  els.ribbonToggleButton.setAttribute('aria-expanded', String(expanded));
+  els.ribbonToggleButton.textContent = expanded ? '빠른 도구 숨기기' : '빠른 도구 보기';
+}
 function surface(visible) {
-  els.emptyState.hidden = visible; els.editorViewport.hidden = !visible; els.quickRibbon.hidden = !state.hasDocument;
+  els.emptyState.hidden = visible; els.editorViewport.hidden = !visible; renderRibbon();
 }
 function controls() {
+  els.ribbonToggleButton.disabled = !state.hasDocument;
   els.studioHost.inert = state.busy || state.saving;
   els.studioChromeButton.disabled = !state.editor || state.busy || state.saving;
-  for (const id of ['newButton', 'emptyNewButton', 'ribbonNewButton', 'openButton', 'emptyOpenButton', 'ribbonOpenButton']) els[id].disabled = state.busy || state.saving;
+  for (const id of ['newButton', 'emptyNewButton', 'openButton', 'emptyOpenButton']) els[id].disabled = state.busy || state.saving;
   els.saveButton.disabled = els.printButton.disabled = !state.hasDocument || state.busy || state.saving;
   els.lineSpacingSelect.disabled = !state.hasDocument || state.busy || state.saving;
   if (state.busy || state.saving) $$('[data-command]').forEach(button => { button.disabled = true; });
@@ -150,15 +161,20 @@ async function toggleChrome() {
   try {
     const current = await state.editor.chrome.get(), visible = !(current.menu || current.toolbar);
     await state.editor.chrome.set({ menu: visible, toolbar: visible, statusbar: true });
-    els.studioChromeButton.textContent = visible ? '기본 도구 숨기기' : '기본 도구 보이기';
+    els.studioChromeButton.textContent = visible ? '편집기 메뉴 숨기기' : '편집기 메뉴 보기';
   } catch (error) { toast(error.message); }
 }
-for (const id of ['newButton', 'emptyNewButton', 'ribbonNewButton']) els[id].addEventListener('click', createNewDocument);
-for (const id of ['openButton', 'emptyOpenButton', 'ribbonOpenButton']) els[id].addEventListener('click', chooseFile);
+for (const id of ['newButton', 'emptyNewButton']) els[id].addEventListener('click', createNewDocument);
+for (const id of ['openButton', 'emptyOpenButton']) els[id].addEventListener('click', chooseFile);
 els.fileInput.addEventListener('change', event => { if (event.target.files[0]) loadDocument(event.target.files[0]); });
 els.saveButton.addEventListener('click', saveDocument);
 els.printButton.addEventListener('click', () => execute('file:print', undefined, true));
 els.studioChromeButton.addEventListener('click', toggleChrome);
+els.ribbonToggleButton.addEventListener('click', () => {
+  ribbonExpanded = !ribbonExpanded;
+  try { localStorage.setItem(ribbonPreferenceKey, String(ribbonExpanded)); } catch {}
+  renderRibbon();
+});
 $$('[data-command]').forEach(button => {
   button.addEventListener('mousedown', event => event.preventDefault());
   button.addEventListener('click', () => execute(button.dataset.command, undefined, button.dataset.dialog === 'true'));
